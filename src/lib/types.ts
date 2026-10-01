@@ -87,6 +87,7 @@ export interface Settings {
   fontSize: number;
   /** yyyy-mm-dd you want to finish all readings by. */
   targetDate: string;
+  theme: "terminal" | "daylight";
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -97,4 +98,5 @@ export const DEFAULT_SETTINGS: Settings = {
   followAlong: true,
   fontSize: 18,
   targetDate: "",
+  theme: "terminal",
 };

@@ -1,41 +1,58 @@
-:root {
-  --bg: #f6f7f9;
-  --surface: #ffffff;
-  --text: #1b2230;
-  --muted: #5d6778;
-  --border: #dde2ea;
-  --accent: #1f4e9c;
-  --accent-text: #ffffff;
-  --accent-soft: #e5edfa;
-  --highlight: #fff2a8;
-  --word: #ffd34d;
-  --ok: #1d7a46;
-  --ok-soft: #e3f4ea;
-  --bad: #b3261e;
-  --bad-soft: #fbe7e5;
-  --warn: #9a5b00;
-  --radius: 10px;
-  color-scheme: light;
+/* Theme: retro-futurist terminal. Gunmetal panels, phosphor-green readouts, amber warnings.
+   "terminal" is the default; "daylight" is a brushed-aluminum variant for bright rooms. */
+:root,
+:root[data-theme="terminal"] {
+  --bg: #121614;
+  --bg-deep: #0b0e0d;
+  --page: #0b0e0d;          /* reading page and input wells */
+  --surface: #1b211e;
+  --surface-2: #232a26;
+  --metal-hi: #3b443f;
+  --metal-lo: #0e1210;
+  --text: #e3e8df;
+  --muted: #98a59b;
+  --border: #36403a;
+  --accent: #6dff9c;        /* phosphor green */
+  --accent-text: #08130c;
+  --accent-soft: #17301f;
+  --glow: 0 0 6px rgba(109, 255, 156, 0.45);
+  --amber: #ffb547;
+  --highlight: #3a3216;     /* current sentence: dim amber field */
+  --word: #7a5a12;
+  --ok: #6dff9c;
+  --ok-soft: #15301f;
+  --bad: #ff7a6b;
+  --bad-soft: #3a1915;
+  --warn: #ffb547;
+  --scanline: rgba(109, 255, 156, 0.035);
+  --radius: 6px;
+  color-scheme: dark;
 }
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0f141c;
-    --surface: #171e29;
-    --text: #e6eaf1;
-    --muted: #97a2b4;
-    --border: #2a3444;
-    --accent: #7fa8ee;
-    --accent-text: #0f141c;
-    --accent-soft: #1d2a40;
-    --highlight: #3d3a1c;
-    --word: #7a6510;
-    --ok: #6fd39a;
-    --ok-soft: #173325;
-    --bad: #ff8a80;
-    --bad-soft: #3a1b1a;
-    --warn: #f0b75c;
-    color-scheme: dark;
-  }
+:root[data-theme="daylight"] {
+  --bg: #d9ddd8;
+  --bg-deep: #c9cec8;
+  --page: #fbfbf7;
+  --surface: #eef0ec;
+  --surface-2: #e2e6e0;
+  --metal-hi: #ffffff;
+  --metal-lo: #a9b0a8;
+  --text: #17201a;
+  --muted: #4c5a50;
+  --border: #a9b2aa;
+  --accent: #0f6b3a;
+  --accent-text: #f2fff6;
+  --accent-soft: #cfe6d6;
+  --glow: none;
+  --amber: #8a5300;
+  --highlight: #ffe6a8;
+  --word: #ffc94d;
+  --ok: #0f6b3a;
+  --ok-soft: #d4ecdc;
+  --bad: #a3271c;
+  --bad-soft: #f6dcd8;
+  --warn: #8a5300;
+  --scanline: transparent;
+  color-scheme: light;
 }
 
 * { box-sizing: border-box; }
@@ -44,6 +61,8 @@ body {
   background: var(--bg);
   color: var(--text);
   font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background-image: radial-gradient(ellipse at top, var(--surface-2), var(--bg) 60%);
+  background-attachment: fixed;
 }
 h1 { font-size: 1.5rem; margin: 0.2em 0 0.6em; }
 h2 { font-size: 1.1rem; margin: 0 0 0.6em; }
@@ -220,3 +239,142 @@ kbd { font: inherit; font-size: 0.85em; border: 1px solid var(--border); border-
 .toast button.link { color: var(--bg); font-weight: 600; }
 .selection-save { position: absolute; z-index: 15; transform: translate(-50%, -110%); box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
 @media (max-width: 760px) { .toast { bottom: 140px; } }
+
+/* ============================================================
+   Retro-futurist theme layer (metal panels, terminal readouts)
+   ============================================================ */
+:root {
+  --font-hud: "Share Tech Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --brushed: repeating-linear-gradient(90deg, rgba(255,255,255,0.018) 0 1px, transparent 1px 3px);
+  --bevel: inset 0 1px 0 var(--metal-hi), inset 0 -1px 0 var(--metal-lo);
+}
+
+h1, h2, h3, h4, .brand, .tab, .subtabs button, .stat .n, .stat .l, .chip, legend,
+.player-title .sub, .note-meta, label { font-family: var(--font-hud); }
+h1, h2, .brand { text-transform: uppercase; letter-spacing: 0.08em; }
+h1 { color: var(--accent); text-shadow: var(--glow); font-weight: 400; }
+h1::before { content: "▌"; color: var(--amber); margin-right: 0.35em; text-shadow: none; }
+h2 { color: var(--text); font-weight: 400; }
+h3, h4 { color: var(--accent); font-weight: 400; letter-spacing: 0.04em; }
+label { letter-spacing: 0.03em; font-weight: 400; color: var(--muted); }
+label > input, label > select, label > textarea { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: var(--text); }
+::selection { background: var(--accent); color: var(--accent-text); }
+
+/* Metal chrome: top bar and player */
+.topbar, .player {
+  background: var(--brushed), linear-gradient(180deg, var(--surface-2), var(--surface));
+  box-shadow: var(--bevel), 0 2px 12px rgba(0,0,0,0.35);
+  border-color: var(--metal-lo);
+}
+.topbar::after, .player::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: repeating-linear-gradient(0deg, var(--scanline) 0 1px, transparent 1px 3px);
+}
+.topbar { border-bottom: 2px solid var(--metal-lo); }
+.brand { color: var(--accent); text-shadow: var(--glow); font-size: 1.05rem; }
+.brand::before { content: "⚛ "; color: var(--amber); text-shadow: none; }
+.tab { text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.85rem; border: 1px solid transparent; border-radius: 3px; }
+.tab:hover { color: var(--text); border-color: var(--border); }
+.tab.active { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); box-shadow: var(--glow); text-shadow: var(--glow); font-weight: 400; }
+
+/* Riveted panels */
+.card, .stat {
+  position: relative;
+  background: var(--brushed), linear-gradient(180deg, var(--surface-2), var(--surface) 40%);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--bevel), 0 3px 10px rgba(0,0,0,0.25);
+}
+.card::before, .card::after, .stat::before, .stat::after {
+  content: ""; position: absolute; top: 7px; width: 6px; height: 6px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, var(--metal-hi), var(--metal-lo) 70%);
+  box-shadow: 0 1px 1px rgba(0,0,0,0.5);
+}
+.card::before, .stat::before { left: 7px; }
+.card::after, .stat::after { right: 7px; }
+.card > h2:first-child { border-bottom: 1px dashed var(--border); padding-bottom: 6px; }
+
+/* Readouts */
+.stat .n { color: var(--accent); text-shadow: var(--glow); font-weight: 400; font-size: 1.9rem; letter-spacing: 0.04em; }
+.stat .l { text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.75rem; }
+.chip { border-radius: 2px; text-transform: uppercase; letter-spacing: 0.06em; border: 1px solid currentColor; background: transparent; }
+.overdue { color: var(--bad); }
+.soon { color: var(--amber); }
+
+/* Controls: machined buttons and recessed inputs */
+button, .button {
+  background: linear-gradient(180deg, var(--surface-2), var(--surface));
+  border-color: var(--border);
+  border-radius: 4px;
+  box-shadow: var(--bevel);
+  transition: border-color 0.15s, box-shadow 0.15s, color 0.15s;
+}
+button:hover:not(:disabled), .button:hover { border-color: var(--accent); color: var(--accent); }
+button:active:not(:disabled) { box-shadow: inset 0 2px 4px rgba(0,0,0,0.4); }
+button.primary { background: linear-gradient(180deg, var(--accent), color-mix(in srgb, var(--accent) 75%, #000)); color: var(--accent-text); border-color: var(--accent); box-shadow: var(--glow), inset 0 1px 0 rgba(255,255,255,0.35); font-weight: 600; }
+button.primary:hover:not(:disabled) { color: var(--accent-text); filter: brightness(1.08); }
+button.active { box-shadow: var(--glow); }
+button.link { background: none; box-shadow: none; color: var(--accent); }
+button.link:hover:not(:disabled) { color: var(--amber); }
+button.danger:hover:not(:disabled) { border-color: var(--bad); color: var(--bad); }
+input, select, textarea {
+  background: var(--page);
+  border-color: var(--border);
+  border-radius: 4px;
+  box-shadow: inset 0 2px 3px rgba(0,0,0,0.35);
+}
+input:focus, select:focus, textarea:focus, button:focus-visible {
+  outline: none; border-color: var(--accent); box-shadow: inset 0 2px 3px rgba(0,0,0,0.35), 0 0 0 1px var(--accent), var(--glow);
+}
+input::placeholder, textarea::placeholder { color: color-mix(in srgb, var(--muted) 75%, transparent); }
+.dropzone { border-color: var(--border); background: repeating-linear-gradient(45deg, transparent 0 10px, rgba(255,181,71,0.04) 10px 20px); }
+.notice { background: var(--accent-soft); border: 1px solid var(--accent); border-left-width: 4px; border-radius: 4px; }
+.error { font-family: var(--font-hud); }
+code, kbd { font-family: var(--font-hud); background: var(--bg-deep); color: var(--accent); border: 1px solid var(--border); }
+
+/* Reading: keep a calm, high-contrast page for long-form text */
+.reading-text, .now-sentence {
+  background: var(--page);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px 24px;
+  box-shadow: inset 0 2px 8px rgba(0,0,0,0.35);
+}
+.sentence.active { background: var(--highlight); box-shadow: 0 0 0 2px var(--highlight); }
+mark.word, .hit-text mark { background: var(--word); }
+.sentence.read { color: var(--muted); }
+
+/* Player: segmented progress bar and a glowing transport */
+.player-progress {
+  height: 4px; top: 0;
+  background: repeating-linear-gradient(90deg, var(--accent) 0 10px, transparent 10px 12px);
+  box-shadow: var(--glow);
+}
+.player-title .t { color: var(--text); }
+.player-title .sub { color: var(--accent); opacity: 0.85; }
+.player-controls .play { background: linear-gradient(180deg, var(--accent), color-mix(in srgb, var(--accent) 75%, #000)); color: var(--accent-text); box-shadow: var(--glow), inset 0 1px 0 rgba(255,255,255,0.35); }
+.note-btn { color: var(--amber); border-color: color-mix(in srgb, var(--amber) 50%, var(--border)); }
+.toast { background: var(--surface-2); color: var(--accent); border: 1px solid var(--accent); box-shadow: var(--glow), 0 6px 20px rgba(0,0,0,0.4); font-family: var(--font-hud); }
+.toast button.link { color: var(--amber); }
+
+/* Meters and notes */
+.meter { height: 6px; background: var(--bg-deep); border: 1px solid var(--border); }
+.meter > div { background: repeating-linear-gradient(90deg, var(--accent) 0 6px, transparent 6px 8px); box-shadow: var(--glow); }
+.note-quote, .md blockquote { border-left-color: var(--amber); }
+.list > li { border-bottom-style: dashed; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+}
+@media (max-width: 760px) {
+  .reading-text { padding: 14px 14px; }
+  /* Fade the tab strip's edge so it's clear it scrolls sideways. */
+  .tabs { mask-image: linear-gradient(90deg, #000 85%, transparent); -webkit-mask-image: linear-gradient(90deg, #000 85%, transparent); padding-right: 24px; }
+  .player-controls { gap: 4px; }
+  .player-controls button { min-width: 0; padding: 6px 8px; flex: 1; }
+  .player-controls .play { flex: 1.4; }
+  .player-controls select { flex: 0 0 auto; padding: 6px 4px; }
+  .note-btn .label { display: none; }
+  .stat .n { font-size: 1.3rem; }
+}
+.player-title, .player-title:hover:not(:disabled) { background: none; border: 0; box-shadow: none; color: inherit; }

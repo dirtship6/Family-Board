@@ -22,6 +22,18 @@ export function SettingsView() {
     <section>
       <h1>Settings</h1>
       <div className="card">
+        <h2>Display</h2>
+        <div className="row">
+          <button className={settings.theme === "terminal" ? "active" : ""} onClick={() => updateSettings({ theme: "terminal" })}>
+            Terminal (dark)
+          </button>
+          <button className={settings.theme === "daylight" ? "active" : ""} onClick={() => updateSettings({ theme: "daylight" })}>
+            Daylight (bright rooms)
+          </button>
+        </div>
+      </div>
+
+      <div className="card">
         <h2>Narration</h2>
         {!speechSupported() && <p className="error">This browser doesn't support speech synthesis. Try Chrome, Edge, or Safari.</p>}
         <label>

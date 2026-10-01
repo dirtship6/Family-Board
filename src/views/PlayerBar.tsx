@@ -28,7 +28,7 @@ export function PlayerBar() {
         <button onClick={() => narrator.skip(1)} aria-label="Next sentence" title="Next sentence (→)">↷</button>
         <button onClick={() => narrator.skipParagraph(1)} aria-label="Next paragraph" title="Next paragraph (↓)">⏭</button>
         <button className="note-btn" onClick={() => void captureNote()} aria-label="Save this sentence to notes" title="Save the sentence being read to your notes (n)">
-          ☆ Note
+          ☆<span className="label"> Note</span>
         </button>
         <select
           value={settings.rate}

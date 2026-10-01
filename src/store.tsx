@@ -209,6 +209,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [reloadReadings, reloadNotes]);
 
   useEffect(() => {
+    document.documentElement.dataset.theme = settings.theme;
+    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", settings.theme === "daylight" ? "#d9ddd8" : "#121614");
+  }, [settings.theme]);
+
+  useEffect(() => {
     narrator.rate = settings.rate;
   }, [narrator, settings.rate]);
 
