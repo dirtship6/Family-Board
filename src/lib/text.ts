@@ -141,3 +141,22 @@ export function stripRunningLines(pages: string[][]): string[][] {
     return page.filter((l, i) => !(l.trim() && edges.has(i) && isNoise(l)));
   });
 }
+
+/** Placeholder paragraph marking where image `n` sat in the original page. */
+export const imageMarker = (n: number) => `img${n}`;
+const MARKER_LINE = /^img(\d+)$/;
+
+/**
+ * Pulls image markers out of cleaned text. `para` is the index of the paragraph the image comes
+ * before (equal to the paragraph count when it sits at the end), matching Sentence.p from toSentences.
+ */
+export function takeImageMarkers(text: string): { text: string; positions: { n: number; para: number }[] } {
+  const positions: { n: number; para: number }[] = [];
+  const kept: string[] = [];
+  for (const para of text.split(/\n\s*\n/)) {
+    const m = para.trim().match(MARKER_LINE);
+    if (m) positions.push({ n: Number(m[1]), para: kept.length });
+    else if (para.trim()) kept.push(para);
+  }
+  return { text: kept.join("\n\n"), positions };
+}

@@ -18,6 +18,19 @@ export interface Reading {
   notes?: string;
   /** Videos and outside articles this lesson page points to. */
   links?: ReadingLink[];
+  /** Number of inline images stored for this reading. */
+  imageCount?: number;
+}
+
+/** A picture from a lesson page, shown inline before paragraph `para` (stored separately from the reading). */
+export interface ReadingImage {
+  /** `${readingId}:${n}` so a reading's images can be fetched by key range. */
+  id: string;
+  readingId: string;
+  n: number;
+  para: number;
+  alt: string;
+  data: Blob;
 }
 
 export interface ReadingLink {

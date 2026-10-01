@@ -65,3 +65,15 @@ describe("stripRunningLines", () => {
     expect(stripRunningLines([["Title", "Text one."], ["Title", "Text two."]])).toEqual([["Title", "Text one."], ["Title", "Text two."]]);
   });
 });
+
+import { imageMarker, takeImageMarkers } from "../src/lib/text";
+describe("image markers", () => {
+  it("records which paragraph each image precedes and removes the markers", () => {
+    const raw = ["Intro para.", imageMarker(0), "Second para. Two sentences.", imageMarker(1), imageMarker(2), "Third.", imageMarker(3)].join("\n\n");
+    const { text, positions } = takeImageMarkers(raw);
+    expect(text).toBe("Intro para.\n\nSecond para. Two sentences.\n\nThird.");
+    expect(positions).toEqual([{ n: 0, para: 1 }, { n: 1, para: 2 }, { n: 2, para: 2 }, { n: 3, para: 3 }]);
+    // Paragraph indexes line up with the narration's paragraph numbers.
+    expect(toSentences(text).map((s) => s.p)).toEqual([0, 1, 1, 2]);
+  });
+});

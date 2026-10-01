@@ -1,6 +1,6 @@
 // Extracts plain text from the file types ACSC readings usually come in.
 import { COURSE_DATA_PATH, describeFile, emptyModules, extractRefs, parseCourseData, stripBoilerplate } from "./canvas";
-import { cleanText, stripRunningLines } from "./text";
+import { cleanText, imageMarker, stripRunningLines, takeImageMarkers } from "./text";
 import type { ReadingLink, TaskKind } from "./types";
 
 export interface ImportedDoc {
@@ -12,6 +12,8 @@ export interface ImportedDoc {
   links?: ReadingLink[];
   /** "page" for an LMS lesson page; otherwise a document. */
   kind?: "page";
+  /** Inline pictures, each placed before paragraph `para` of `text`. */
+  images?: { para: number; alt: string; data: Blob }[];
 }
 
 /** Everything one dropped file produced. Course packages can also yield tasks and paper prompts. */
@@ -81,7 +83,11 @@ const BLOCK_TAGS = new Set([
  * Visible text of an HTML page, one block per paragraph. Walks the whole tree so text that sits
  * loose inside table cells or divs (common in LMS pages) is kept, and nothing is read twice.
  */
-export function htmlToText(html: string): { title: string; text: string } {
+export function htmlToText(
+  html: string,
+  opts: { markImages?: boolean } = {},
+): { title: string; text: string; images: { src: string; alt: string }[] } {
+  const images: { src: string; alt: string }[] = [];
   const doc = new DOMParser().parseFromString(html, "text/html");
   doc.querySelectorAll("script,style,nav,header,footer,aside,noscript,svg,iframe,button,select,template").forEach((n) => n.remove());
   const root = doc.querySelector("article, main") ?? doc.body;
@@ -100,13 +106,21 @@ export function htmlToText(html: string): { title: string; text: string } {
         if (block) flush();
         walk(child);
         if (block) flush();
-        else if ((child as Element).tagName === "IMG") buf += " ";
+        else if ((child as Element).tagName === "IMG") {
+          const el = child as HTMLImageElement;
+          if (opts.markImages && el.getAttribute("src")) {
+            // Give the picture its own paragraph slot so it can be shown where it sat.
+            flush();
+            images.push({ src: el.getAttribute("src")!, alt: (el.getAttribute("alt") ?? "").trim() });
+            blocks.push(imageMarker(images.length - 1));
+          } else buf += " ";
+        }
       }
     }
   };
   if (root) walk(root);
   flush();
-  return { title: doc.title, text: blocks.join("\n\n") };
+  return { title: doc.title, text: blocks.join("\n\n"), images };
 }
 
 export async function importFile(file: File): Promise<ImportedDoc> {
@@ -182,6 +196,27 @@ function wordTargetFrom(prompt: string): number | undefined {
   return Number((m[2] ?? m[1]).replace(/,/g, ""));
 }
 
+const IMAGE_TYPES: Record<string, string> = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", svg: "image/svg+xml" };
+
+/** A content picture from the export, or null for icons, reading-cover thumbnails, and remote images. */
+function lessonImage(files: Record<string, Uint8Array>, root: string, src: string): Blob | null {
+  const local = src.match(/^(?:\.\/)?(viewer\/files\/[^?#]+)/);
+  if (!local) return null;
+  let rel: string;
+  try {
+    rel = decodeURIComponent(local[1]);
+  } catch {
+    rel = local[1];
+  }
+  const name = rel.split("/").pop() ?? "";
+  // Icons and per-reading cover thumbnails are decoration, not lesson content.
+  if (/\/icons?\/|_icons?\//i.test(rel) || /^icon[_ ]/i.test(name)) return null;
+  const type = IMAGE_TYPES[name.split(".").pop()?.toLowerCase() ?? ""];
+  const data = files[root + rel];
+  if (!type || !data || data.length < 2048) return null;
+  return new Blob([data as BlobPart], { type });
+}
+
 /** A Canvas "Download course content" export, imported in module order. */
 async function canvasToResult(files: Record<string, Uint8Array>, dataPath: string, onProgress?: Progress): Promise<ImportResult> {
   const course = parseCourseData(decode(files[dataPath]));
@@ -211,12 +246,25 @@ async function canvasToResult(files: Record<string, Uint8Array>, dataPath: strin
     for (const item of mod.items) {
       const html = item.content ?? "";
       const refs = html ? extractRefs(html) : [];
-      const text = html ? cleanText(stripBoilerplate(htmlToText(html).text)) : "";
+      const page = html ? htmlToText(html, { markImages: true }) : { text: "", images: [] };
+      const marked = takeImageMarkers(cleanText(stripBoilerplate(page.text)));
+      const text = marked.text;
       const key = item.title.trim().toLowerCase();
       // Pages under ~100 words are admin notes (notification settings, "click next"), not lesson content.
       if (item.type === "WikiPage" && text.split(/\s+/).length >= 100) {
         const links = refs.filter((r) => r.url).map((r) => ({ label: r.label, url: r.url!, kind: r.kind as ReadingLink["kind"] }));
-        docs.push({ title: item.title.trim(), text, kind: "page", links: links.length ? links : undefined });
+        const images = marked.positions.flatMap(({ n, para }) => {
+          const img = page.images[n];
+          const file = img && lessonImage(files, root, img.src);
+          return file ? [{ para, alt: img.alt.replace(/\.(png|jpe?g|gif|webp)$/i, ""), data: file }] : [];
+        });
+        docs.push({
+          title: item.title.trim(),
+          text,
+          kind: "page",
+          links: links.length ? links : undefined,
+          images: images.length ? images : undefined,
+        });
       } else if (item.type === "Assignment" && !seenTitles.has(key)) {
         seenTitles.add(key);
         tasks.push({ title: item.title.trim(), kind: "paper" });

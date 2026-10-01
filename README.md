@@ -11,6 +11,7 @@ A browser-based study companion for Air Command and Staff College. It's built to
   - Everything imports in the order the course presents it: each lesson page, then the readings that page assigns.
   - PDF file names become proper titles, authors and years for citations.
   - Each lesson page's videos and outside articles appear as links above its text.
+  - Lesson images (diagrams, charts, photos) appear inline where the lesson places them; tap one to enlarge it. Narration skips them, and icons and reading thumbnails aren't imported. Images are stored on your device and included in backups.
   - Assignments and progress checks become Tasks, and each assignment's instructions pre-fill a Papers workspace, including the word limit when one is stated.
   - Running headers, page numbers, copyright footers and JSTOR stamps are stripped from PDFs.
   - Lessons that downloaded empty (still locked) are flagged. Importing a newer download later adds only what's new.

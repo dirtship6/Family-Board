@@ -240,6 +240,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const deleteReading = useCallback(
     async (id: string) => {
       await db.remove("readings", id);
+      await db.deleteImages(id);
       setReadings((prev) => prev.filter((r) => r.id !== id));
       if (nowPlayingRef.current?.id === id) {
         narrator.stop();

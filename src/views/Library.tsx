@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { playOrder, useStore } from "../store";
-import { ACCEPTED_FILES, importAny, importUrl } from "../lib/importers";
+import { ACCEPTED_FILES, importAny, importUrl, type ImportedDoc } from "../lib/importers";
 import * as db from "../lib/db";
 import { newId } from "../lib/db";
 import { cleanText, formatDuration, listenMinutes, remainingWords, wordCount } from "../lib/text";
@@ -75,10 +75,15 @@ export function Library() {
     return inCourse.length ? Math.max(...inCourse.map((r) => r.order)) + 1 : 1;
   };
 
-  const add = async (title: string, text: string, extra: Partial<Reading> = {}) => {
+  const add = async (title: string, text: string, extra: Partial<Reading> = {}, images?: ImportedDoc["images"]) => {
     const c = course.trim() || "Unsorted";
+    const id = newId();
+    // Store pictures first so the reading never points at images that aren't there yet.
+    if (images?.length) {
+      await db.putImages(images.map((img, n) => ({ id: `${id}:${String(n).padStart(3, "0")}`, readingId: id, n, para: img.para, alt: img.alt, data: img.data })));
+    }
     const reading: Reading = {
-      id: newId(),
+      id,
       title: title.trim() || "Untitled reading",
       course: c,
       order: nextOrder(c),
@@ -87,6 +92,7 @@ export function Library() {
       position: 0,
       completed: false,
       createdAt: Date.now(),
+      imageCount: images?.length || undefined,
       ...extra,
     };
     await saveReading(reading);
@@ -125,7 +131,7 @@ export function Library() {
             continue;
           }
           have.add(key);
-          await add(doc.title, doc.text, { course: c, order: orderFor(c), author: doc.author, year: doc.year, links: doc.links });
+          await add(doc.title, doc.text, { course: c, order: orderFor(c), author: doc.author, year: doc.year, links: doc.links }, doc.images);
           sum[doc.kind === "page" ? "pages" : "readings"]++;
         }
         for (const t of result.tasks ?? []) {
@@ -290,6 +296,7 @@ export function Library() {
                       <div className="muted small">
                         {r.author && `${r.author} · `}
                         {r.wordCount.toLocaleString()} words · {formatDuration(listenMinutes(r.wordCount, settings.rate))}
+                        {r.imageCount ? ` · ${r.imageCount} image${r.imageCount === 1 ? "" : "s"}` : ""}
                         {r.links?.length ? ` · ${r.links.length} video/link${r.links.length === 1 ? "" : "s"}` : ""}
                         {r.brief && " · brief ready"}
                       </div>

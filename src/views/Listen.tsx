@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import * as db from "../lib/db";
 import { playOrder, useStore } from "../store";
 import { formatDuration, listenMinutes } from "../lib/text";
 
@@ -70,12 +71,46 @@ export function Listen() {
   }, []);
 
   const paragraphs = useMemo(() => {
-    const out: { index: number; text: string }[][] = [];
+    const out: { p: number; items: { index: number; text: string }[] }[] = [];
     sentences.forEach((s, index) => {
-      (out[s.p] ??= []).push({ index, text: s.text });
+      const last = out[out.length - 1];
+      if (last?.p === s.p) last.items.push({ index, text: s.text });
+      else out.push({ p: s.p, items: [{ index, text: s.text }] });
     });
-    return out.filter(Boolean);
+    return out;
   }, [sentences]);
+
+  // Lesson images live in their own store; turn them into object URLs while this reading is open.
+  const [images, setImages] = useState<{ n: number; para: number; alt: string; url: string }[]>([]);
+  const [zoomed, setZoomed] = useState<{ url: string; alt: string } | null>(null);
+  useEffect(() => {
+    let urls: string[] = [];
+    let cancelled = false;
+    setImages([]);
+    if (nowPlaying?.imageCount) {
+      void db.imagesFor(nowPlaying.id).then((list) => {
+        if (cancelled) return;
+        const mapped = list.map((img) => ({ n: img.n, para: img.para, alt: img.alt, url: URL.createObjectURL(img.data) }));
+        urls = mapped.map((m) => m.url);
+        setImages(mapped);
+      });
+    }
+    return () => {
+      cancelled = true;
+      urls.forEach((u) => URL.revokeObjectURL(u));
+    };
+  }, [nowPlaying?.id, nowPlaying?.imageCount]);
+
+  const norm = (t: string) => t.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const figure = (img: (typeof images)[number], nextText = "") => (
+    <figure key={`img${img.n}`} className="lesson-figure">
+      <button className="figure-btn" onClick={() => setZoomed(img)} aria-label={`Enlarge image: ${img.alt || "lesson image"}`}>
+        <img src={img.url} alt={img.alt} loading="lazy" />
+      </button>
+      {/* Skip our caption when the lesson's own caption line follows the picture. */}
+      {img.alt && !(nextText && norm(nextText).startsWith(norm(img.alt))) && <figcaption>{img.alt}</figcaption>}
+    </figure>
+  );
 
   const queue = useMemo(() => playOrder(readings).filter((r) => !r.completed), [readings]);
 
@@ -188,9 +223,14 @@ export function Listen() {
       ) : null}
       {showText ? (
         <article ref={articleRef} className="reading-text" style={{ fontSize: settings.fontSize }}>
-          {paragraphs.map((p, i) => (
-            <p key={i}>{p.map((s) => renderSentence(s.index, s.text))}</p>
+          {paragraphs.map(({ p, items }) => (
+            <Fragment key={p}>
+              {images.filter((img) => img.para === p).map((img) => figure(img, items[0]?.text))}
+              <p>{items.map((s) => renderSentence(s.index, s.text))}</p>
+            </Fragment>
           ))}
+          {/* Pictures after the last paragraph. */}
+          {images.filter((img) => img.para > (paragraphs[paragraphs.length - 1]?.p ?? -1)).map((img) => figure(img))}
         </article>
       ) : (
         <div className="audio-only">
@@ -211,6 +251,12 @@ export function Listen() {
         >
           ☆ Save to notes
         </button>
+      )}
+      {zoomed && (
+        <div className="lightbox" role="dialog" aria-label={zoomed.alt || "Image"} onClick={() => setZoomed(null)}>
+          <img src={zoomed.url} alt={zoomed.alt} />
+          {zoomed.alt && <div className="lightbox-caption">{zoomed.alt} · tap anywhere to close</div>}
+        </div>
       )}
       {userScrolled && settings.followAlong && showText && (
         <button className="float-btn" onClick={() => setUserScrolled(false)}>

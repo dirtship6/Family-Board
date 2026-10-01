@@ -400,3 +400,15 @@ mark.word, .hit-text mark { background: var(--word); }
 }
 .page-link:hover { border-color: var(--amber); }
 .import-summary p { margin: 6px 0 0; }
+
+/* Lesson images */
+.lesson-figure { margin: 18px 0; text-align: center; }
+.lesson-figure .figure-btn { padding: 4px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px; box-shadow: none; cursor: zoom-in; display: inline-block; max-width: 100%; }
+.lesson-figure img { display: block; max-width: 100%; max-height: 420px; height: auto; border-radius: 2px; }
+.lesson-figure figcaption { font-family: var(--font-hud); font-size: 0.8rem; color: var(--muted); margin-top: 6px; }
+.lightbox {
+  position: fixed; inset: 0; z-index: 50; background: rgba(4, 6, 5, 0.96);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 16px; cursor: zoom-out;
+}
+.lightbox img { max-width: 100%; max-height: 85vh; background: #fff; }
+.lightbox-caption { color: #e3e8df; font-family: var(--font-hud); margin-top: 10px; text-align: center; }
