@@ -1,6 +1,6 @@
-import { useDeferredValue, useMemo, useRef, useState, type ReactNode } from "react";
+import { useDeferredValue, useMemo, useState, type ReactNode } from "react";
 import { useStore } from "../store";
-import { highlightRanges, indexReading, parseQuery, search, type IndexedReading } from "../lib/search";
+import { buildIndex, highlightRanges, parseQuery, search, type IndexedReading } from "../lib/search";
 import { footnote } from "../lib/citations";
 import { noteFromReading } from "../lib/notes";
 
@@ -25,22 +25,7 @@ export function Search() {
   const [copied, setCopied] = useState("");
   const deferred = useDeferredValue(query);
 
-  // Re-segment a reading only when its text changes, not on every saved listening position.
-  const cache = useRef(new Map<string, { text: string; idx: IndexedReading }>());
-  const index = useMemo(() => {
-    const live = new Set<string>();
-    const out = readings.map((r) => {
-      live.add(r.id);
-      let c = cache.current.get(r.id);
-      if (!c || c.text !== r.text) {
-        c = { text: r.text, idx: indexReading(r) };
-        cache.current.set(r.id, c);
-      }
-      return { ...c.idx, course: r.course, title: r.title };
-    });
-    for (const id of cache.current.keys()) if (!live.has(id)) cache.current.delete(id);
-    return out;
-  }, [readings]);
+  const index = useMemo(() => buildIndex(readings), [readings]);
 
   const courses = useMemo(() => [...new Set(readings.map((r) => r.course))].sort(), [readings]);
   const terms = useMemo(() => parseQuery(deferred), [deferred]);

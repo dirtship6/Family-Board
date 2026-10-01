@@ -378,3 +378,15 @@ mark.word, .hit-text mark { background: var(--word); }
   .stat .n { font-size: 1.3rem; }
 }
 .player-title, .player-title:hover:not(:disabled) { background: none; border: 0; box-shadow: none; color: inherit; }
+
+/* Ask the readings */
+.ask-row { align-items: stretch; margin: 8px 0 4px; }
+.ask-row textarea { resize: none; }
+.answer { border-top: 1px dashed var(--border); padding: 14px 0 6px; margin-top: 12px; }
+.answer-q { font-family: var(--font-hud); color: var(--accent); margin-bottom: 8px; }
+.answer-bluf { font-size: 1.05rem; line-height: 1.6; margin: 6px 0 10px; }
+.answer-points { margin: 0 0 10px; padding-left: 20px; line-height: 1.55; }
+.answer-points li { margin-bottom: 6px; }
+.chips { display: inline-flex; gap: 4px; flex-wrap: wrap; vertical-align: middle; }
+.source-chip { font-family: var(--font-hud); font-size: 0.72rem; padding: 1px 7px; border-radius: 3px; color: var(--amber); border-color: color-mix(in srgb, var(--amber) 45%, var(--border)); }
+.notice.warn { border-color: var(--amber); }

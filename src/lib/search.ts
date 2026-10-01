@@ -35,6 +35,25 @@ export function indexReading(r: { id: string; course: string; title: string; tex
   return { id: r.id, course: r.course, title: r.title, sentences, folded: sentences.map((s) => fold(s.text)) };
 }
 
+// Segmenting a long reading is the slow part; redo it only when a reading's text changes.
+const indexCache = new Map<string, { text: string; idx: IndexedReading }>();
+
+/** Index for the whole library, reusing cached segmentation. */
+export function buildIndex(readings: { id: string; course: string; title: string; text: string }[]): IndexedReading[] {
+  const live = new Set<string>();
+  const out = readings.map((r) => {
+    live.add(r.id);
+    let c = indexCache.get(r.id);
+    if (!c || c.text !== r.text) {
+      c = { text: r.text, idx: indexReading(r) };
+      indexCache.set(r.id, c);
+    }
+    return c.idx.course === r.course && c.idx.title === r.title ? c.idx : { ...c.idx, course: r.course, title: r.title };
+  });
+  for (const id of indexCache.keys()) if (!live.has(id)) indexCache.delete(id);
+  return out;
+}
+
 /** Splits a query into terms; "quoted phrases" stay together. */
 export function parseQuery(q: string): string[] {
   const terms: string[] = [];

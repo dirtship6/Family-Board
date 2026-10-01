@@ -17,7 +17,7 @@ A browser-based study companion for Air Command and Staff College. It's built to
 - **Search** across every reading at once, or filter to one course. Every word must appear in the same sentence; use "quotes" for exact phrases. Each hit shows its surrounding sentences, and you can jump to that spot to read or listen from there, or copy the quote with a footnote.
 - **Notes — a running notebook for the whole degree.** Tap **☆ Note** in the player (or press `n`) to save the sentence being read, even while you're on another tab. You can also select any text in a reading, or save a search hit or an AI answer. Each note keeps its course, source, and a Chicago citation. You can widen a quote by a sentence, add your own take and tags, jump back to the source, search and filter, and export everything to Markdown (opens in Word, Google Docs, OneNote, or Obsidian).
 - **Reading briefs:** BLUF, thesis, key arguments, key terms, connections, likely-tested points, and seminar questions.
-- **Ask the readings:** compare authors, explain concepts, or apply them to scenarios, with answers grounded in your library.
+- **Ask the readings:** ask a question in plain English about all your readings, one course, or the reading that's playing. It finds the most relevant passages, including ones that use different wording, and Claude gives a short answer: a 2–4 sentence bottom line plus a few supporting points. Each point cites its reading, and tapping the citation jumps to the exact sentence. Only the matching passages are sent to Claude, so each question is quick and cheap. You can save the answer, or any passage it used, to Notes.
 - **Paper workspace:** decode the prompt and rubric, pressure-test your thesis, organize your ideas, find verbatim evidence in your readings, get instructor-style feedback on your draft, and check your citations. It also builds Chicago/AU-style footnotes and bibliographies from your library, and tracks word count against the target.
 - **Tasks:** due dates with overdue/soon flags. You can bulk-paste your schedule (`2026-10-14 | Airpower | quiz | Lesson 3 quiz`).
 
@@ -31,7 +31,7 @@ The study tools are designed to *prepare* you. The writing coach gives feedback 
 
 - Everything (readings, progress, notes, papers, tasks) is stored locally in your browser (IndexedDB). Use **Settings → Export backup** to move between devices, and export a backup regularly: your notebook is meant to outlast the course.
 - Your API key is stored in this browser's localStorage, and requests go directly from your browser to `api.anthropic.com`.
-- When you use an AI tool, the text of the selected readings and your paper is sent to Anthropic. Only use these tools on material you're allowed to share outside government systems. Never use them on CUI or anything with distribution restrictions.
+- When you use an AI tool, reading text is sent to Anthropic: the passages that match your question for Ask, or the whole reading or paper for briefs and the writing coach. Only use these tools on material you're allowed to share outside government systems. Never use them on CUI or anything with distribution restrictions.
 
 ## Run it
 

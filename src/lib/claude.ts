@@ -3,6 +3,7 @@
 // straight from the browser to the Anthropic API.
 import Anthropic from "@anthropic-ai/sdk";
 import type { BetaContentBlockParam, BetaMessage } from "@anthropic-ai/sdk/resources/beta/messages/messages";
+import type { Passage } from "./retrieve";
 import type { Paper, Reading, StudyBrief } from "./types";
 
 const MODEL = "claude-opus-5-5";
@@ -259,17 +260,68 @@ export function runPaperAction(
   return askText({ apiKey, readings: sources, instruction: a.build(paper), onText, effort: a.effort, system: PAPER_SYSTEM });
 }
 
-export function askAboutReadings(
-  apiKey: string,
-  readings: Reading[],
-  question: string,
-  onText: (s: string) => void,
-): Promise<string> {
-  return askText({
+/** Turns a question into extra search terms (synonyms, doctrine terms, names) for passage retrieval. */
+export async function expandQuery(apiKey: string, question: string): Promise<string[]> {
+  const out = await askJSON<{ terms: string[] }>({
     apiKey,
-    readings,
-    instruction: `Question about these readings: ${question}`,
-    onText,
-    effort: "medium",
+    readings: [],
+    effort: "low",
+    instruction: `A student is searching their Air Command and Staff College readings to answer this question:
+"${question}"
+List 6-12 search terms likely to appear in passages that answer it: key concepts, synonyms, related doctrine terms, theorists, and short phrases (1-3 words each). Don't repeat the question's own words.`,
+    schema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["terms"],
+      properties: { terms: strArray },
+    },
+  });
+  return out.terms.slice(0, 15);
+}
+
+export interface ShortAnswer {
+  /** 2-4 sentence bottom line. */
+  answer: string;
+  points: { point: string; sources: number[] }[];
+  coverage: "answered" | "partial" | "not_found";
+}
+
+export function answerFromPassages(apiKey: string, question: string, passages: Passage[]): Promise<ShortAnswer> {
+  const body = passages
+    .map((p) => `<passage n="${p.n}" reading="${p.title.replace(/"/g, "'")}" course="${p.course.replace(/"/g, "'")}">\n${p.text}\n</passage>`)
+    .join("\n");
+  return askJSON<ShortAnswer>({
+    apiKey,
+    readings: [],
+    effort: "low",
+    instruction: `<passages>
+${body}
+</passages>
+
+Question: ${question}
+
+Answer using only the passages above, which were retrieved from the student's course readings.
+- answer: the bottom line in 2-4 plain sentences.
+- points: 2-5 short supporting points (one sentence each). sources lists the passage numbers each point relies on.
+- If the passages only partly answer it, say what's missing in the answer and set coverage to "partial". If they don't answer it, set coverage to "not_found", say so briefly, and leave points empty.
+Never add facts that aren't in the passages.`,
+    schema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["answer", "points", "coverage"],
+      properties: {
+        answer: { type: "string" },
+        points: {
+          type: "array",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            required: ["point", "sources"],
+            properties: { point: { type: "string" }, sources: { type: "array", items: { type: "integer" } } },
+          },
+        },
+        coverage: { type: "string", enum: ["answered", "partial", "not_found"] },
+      },
+    },
   });
 }
