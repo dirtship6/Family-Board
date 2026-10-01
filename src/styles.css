@@ -104,7 +104,7 @@ summary { cursor: pointer; color: var(--accent); }
 .small { font-size: 0.85rem; }
 .strong { font-weight: 600; }
 .done { text-decoration: line-through; color: var(--muted); }
-.error { color: var(--bad); }
+.error { color: var(--bad); white-space: pre-line; }
 .notice { background: var(--accent-soft); padding: 8px 12px; border-radius: 8px; }
 .empty { color: var(--muted); padding: 24px 0; text-align: center; }
 .search { width: 100%; margin-bottom: 12px; }
@@ -167,17 +167,6 @@ mark.word { background: var(--word); color: inherit; border-radius: 3px; }
 .brief dt { font-weight: 600; display: inline; }
 .brief dt::after { content: " — "; }
 .brief dd { display: inline; margin: 0; }
-.quiz h3 { font-size: 1.1rem; }
-.choices { display: grid; gap: 8px; }
-.choice { justify-content: flex-start; text-align: left; padding: 10px 12px; }
-.choice .letter { font-weight: 700; color: var(--muted); }
-.choice.correct { background: var(--ok-soft); border-color: var(--ok); }
-.choice.wrong { background: var(--bad-soft); border-color: var(--bad); }
-.choice:disabled { opacity: 1; }
-.explanation { margin-top: 12px; padding: 10px 12px; background: var(--accent-soft); border-radius: 8px; }
-.result { padding: 8px 12px; border-radius: 8px; margin: 6px 0; }
-.result.ok { background: var(--ok-soft); }
-.result.miss { background: var(--bad-soft); }
 .md { line-height: 1.6; }
 .md h3 { margin-top: 1em; }
 .md blockquote { border-left: 3px solid var(--border); margin: 0.5em 0; padding-left: 12px; color: var(--muted); }
@@ -205,3 +194,12 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 16px 0; }
   .app { padding-bottom: 130px; }
   .float-btn { bottom: 140px; }
 }
+
+/* Search */
+.search-bar input[type="search"] { font-size: 1.05rem; padding: 10px 12px; }
+.hit { padding: 10px 0; border-bottom: 1px solid var(--border); }
+.hit:last-of-type { border-bottom: 0; }
+.hit-text { margin: 0 0 6px; font-family: Georgia, serif; line-height: 1.6; }
+.hit-text mark { background: var(--highlight); color: inherit; border-radius: 3px; padding: 0 1px; }
+.hit-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.hit-actions button { font-size: 0.85rem; padding: 4px 9px; }

@@ -3,7 +3,7 @@
 // straight from the browser to the Anthropic API.
 import Anthropic from "@anthropic-ai/sdk";
 import type { BetaContentBlockParam, BetaMessage } from "@anthropic-ai/sdk/resources/beta/messages/messages";
-import type { Paper, QuizQuestion, Reading, StudyBrief } from "./types";
+import type { Paper, Reading, StudyBrief } from "./types";
 
 const MODEL = "claude-opus-5-5";
 const BETAS = ["server-side-fallback-2026-07-01"];
@@ -147,47 +147,6 @@ export function generateBrief(apiKey: string, reading: Reading): Promise<StudyBr
       },
     },
   });
-}
-
-export async function generateQuiz(
-  apiKey: string,
-  readings: Reading[],
-  count: number,
-  focus: string,
-): Promise<QuizQuestion[]> {
-  const out = await askJSON<{ questions: QuizQuestion[] }>({
-    apiKey,
-    readings,
-    effort: "medium",
-    instruction: `Write a ${count}-question multiple-choice practice quiz on these readings, at the level of an ACSC graduate course quiz.
-Mix recall of key facts and terms with comprehension of each author's argument and application to new situations.
-Each question has exactly 4 plausible choices; answerIndex is the 0-based index of the single correct choice.
-The explanation says why the answer is right and why the strongest distractor is wrong, citing the reading.
-sourceTitle is the title of the reading the question comes from.${focus.trim() ? `\nFocus on: ${focus.trim()}` : ""}`,
-    schema: {
-      type: "object",
-      additionalProperties: false,
-      required: ["questions"],
-      properties: {
-        questions: {
-          type: "array",
-          items: {
-            type: "object",
-            additionalProperties: false,
-            required: ["question", "choices", "answerIndex", "explanation", "sourceTitle"],
-            properties: {
-              question: { type: "string" },
-              choices: strArray,
-              answerIndex: { type: "integer" },
-              explanation: { type: "string" },
-              sourceTitle: { type: "string" },
-            },
-          },
-        },
-      },
-    },
-  });
-  return out.questions.filter((q) => q.choices.length >= 2 && q.answerIndex >= 0 && q.answerIndex < q.choices.length);
 }
 
 const PAPER_SYSTEM = `${COACH_SYSTEM}

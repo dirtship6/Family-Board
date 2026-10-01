@@ -62,7 +62,7 @@ export function SettingsView() {
       <div className="card">
         <h2>AI study tools</h2>
         <p className="muted small">
-          Briefs, practice quizzes, Q&amp;A, and the writing coach use the Claude API with your own key from{" "}
+          Briefs, Q&amp;A, and the writing coach use the Claude API with your own key from{" "}
           <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noreferrer">console.anthropic.com</a>.
           The key is stored only in this browser. Reading text you run these tools on is sent to Anthropic's API, so
           only use them on material you're permitted to share outside government systems.

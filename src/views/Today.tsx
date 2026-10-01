@@ -62,7 +62,7 @@ export function Today() {
               {nowPlaying?.id === resume.id && playing ? "❚❚ Pause" : "▶ Listen"}
             </button>
             <button onClick={() => { if (nowPlaying?.id !== resume.id) open(resume); go("listen"); }}>Follow along</button>
-            <button onClick={() => go("study")}>Brief &amp; quiz</button>
+            <button onClick={() => go("study")}>Brief &amp; Q&amp;A</button>
           </div>
         </div>
       ) : (

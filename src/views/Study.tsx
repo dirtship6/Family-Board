@@ -1,12 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import { playOrder, useStore } from "../store";
-import { askAboutReadings, generateBrief, generateQuiz } from "../lib/claude";
-import * as db from "../lib/db";
-import type { QuizAttempt, QuizQuestion, Reading } from "../lib/types";
+import { askAboutReadings, generateBrief } from "../lib/claude";
+import type { Reading } from "../lib/types";
 import { Markdown } from "./Markdown";
 import { ReadingPicker } from "./ReadingPicker";
 
-type Tab = "brief" | "quiz" | "review" | "ask";
+type Tab = "brief" | "ask";
 
 function BriefPanel() {
   const { readings, nowPlaying, settings, saveReading, open, go } = useStore();
@@ -87,221 +86,6 @@ function BriefPanel() {
   );
 }
 
-function QuizRunner({ attempt, onSave }: { attempt: QuizAttempt; onSave(a: QuizAttempt): void }) {
-  const [i, setI] = useState(() => {
-    const firstOpen = attempt.answers.findIndex((a) => a === null);
-    return firstOpen < 0 ? 0 : firstOpen;
-  });
-  const q = attempt.questions[i];
-  const chosen = attempt.answers[i];
-  const correct = attempt.answers.filter((a, k) => a === attempt.questions[k].answerIndex).length;
-  const answered = attempt.answers.filter((a) => a !== null).length;
-
-  if (attempt.finished) {
-    return (
-      <div className="quiz">
-        <h3>
-          Score: {correct}/{attempt.questions.length} ({Math.round((correct / attempt.questions.length) * 100)}%)
-        </h3>
-        {attempt.questions.map((qq, k) => {
-          const ok = attempt.answers[k] === qq.answerIndex;
-          return (
-            <div key={k} className={ok ? "result ok" : "result miss"}>
-              <div className="strong">{ok ? "✓" : "✗"} {qq.question}</div>
-              {!ok && (
-                <div className="small">
-                  You: {attempt.answers[k] !== null ? qq.choices[attempt.answers[k]!] : "—"} · Correct: {qq.choices[qq.answerIndex]}
-                </div>
-              )}
-              <div className="small muted">{qq.explanation}</div>
-            </div>
-          );
-        })}
-      </div>
-    );
-  }
-
-  return (
-    <div className="quiz">
-      <div className="muted small">
-        Question {i + 1} of {attempt.questions.length} · {q.sourceTitle} · {correct}/{answered} correct so far
-      </div>
-      <h3>{q.question}</h3>
-      <div className="choices">
-        {q.choices.map((c, k) => {
-          let cls = "choice";
-          if (chosen !== null) {
-            if (k === q.answerIndex) cls += " correct";
-            else if (k === chosen) cls += " wrong";
-          }
-          return (
-            <button
-              key={k}
-              className={cls}
-              disabled={chosen !== null}
-              onClick={() => {
-                const answers = attempt.answers.slice();
-                answers[i] = k;
-                onSave({ ...attempt, answers });
-              }}
-            >
-              <span className="letter">{String.fromCharCode(65 + k)}</span> {c}
-            </button>
-          );
-        })}
-      </div>
-      {chosen !== null && <div className="explanation">{q.explanation}</div>}
-      <div className="actions">
-        <button disabled={i === 0} onClick={() => setI(i - 1)}>← Back</button>
-        {i < attempt.questions.length - 1 ? (
-          <button className="primary" disabled={chosen === null} onClick={() => setI(i + 1)}>Next →</button>
-        ) : (
-          <button className="primary" disabled={chosen === null} onClick={() => onSave({ ...attempt, finished: true })}>
-            Finish
-          </button>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function QuizPanel({ reviewOnly }: { reviewOnly?: boolean }) {
-  const { readings, settings, nowPlaying } = useStore();
-  const [selected, setSelected] = useState<string[]>(nowPlaying ? [nowPlaying.id] : []);
-  const [count, setCount] = useState(10);
-  const [focus, setFocus] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [attempts, setAttempts] = useState<QuizAttempt[]>([]);
-  const [active, setActive] = useState<QuizAttempt | null>(null);
-
-  useEffect(() => {
-    void db.all("quizzes").then((a) => setAttempts(a.sort((x, y) => y.createdAt - x.createdAt)));
-  }, []);
-
-  const save = async (a: QuizAttempt) => {
-    setActive(a);
-    setAttempts((prev) => [a, ...prev.filter((x) => x.id !== a.id)]);
-    await db.put("quizzes", a);
-  };
-
-  const start = (questions: QuizQuestion[], readingIds: string[]) =>
-    save({
-      id: db.newId(),
-      createdAt: Date.now(),
-      readingIds,
-      questions,
-      answers: questions.map(() => null),
-      finished: false,
-    });
-
-  const missed = useMemo(() => {
-    const seen = new Set<string>();
-    const out: QuizQuestion[] = [];
-    for (const a of attempts) {
-      a.questions.forEach((q, k) => {
-        if (a.answers[k] !== null && a.answers[k] !== q.answerIndex && !seen.has(q.question)) {
-          seen.add(q.question);
-          out.push(q);
-        }
-      });
-    }
-    return out;
-  }, [attempts]);
-
-  if (active) {
-    return (
-      <div>
-        <button className="link" onClick={() => setActive(null)}>← All quizzes</button>
-        <QuizRunner key={active.id} attempt={active} onSave={(a) => void save(a)} />
-      </div>
-    );
-  }
-
-  if (reviewOnly) {
-    return (
-      <div>
-        <p className="muted">
-          Every question you've missed across practice quizzes, deduplicated. Drill these until they stick.
-        </p>
-        {missed.length ? (
-          <button className="primary" onClick={() => void start([...missed].sort(() => Math.random() - 0.5).slice(0, 25), [])}>
-            Drill {Math.min(missed.length, 25)} missed questions
-          </button>
-        ) : (
-          <p className="empty">No missed questions yet.</p>
-        )}
-      </div>
-    );
-  }
-
-  const generate = async () => {
-    setBusy(true);
-    setError("");
-    try {
-      const chosen = readings.filter((r) => selected.includes(r.id));
-      const qs = await generateQuiz(settings.apiKey, chosen, count, focus);
-      await start(qs, selected);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    }
-    setBusy(false);
-  };
-
-  return (
-    <div>
-      <p className="muted">
-        Practice quizzes built from your readings, with explanations. Use them to find gaps before the graded quiz.
-      </p>
-      <ReadingPicker selected={selected} onChange={setSelected} />
-      <div className="row">
-        <label>
-          Questions
-          <select value={count} onChange={(e) => setCount(Number(e.target.value))}>
-            {[5, 10, 15, 20, 30].map((n) => <option key={n}>{n}</option>)}
-          </select>
-        </label>
-        <label className="grow">
-          Focus (optional)
-          <input value={focus} onChange={(e) => setFocus(e.target.value)} placeholder="e.g. definitions, Warden vs. Boyd, the learning objectives" />
-        </label>
-      </div>
-      <button className="primary" disabled={!selected.length || busy} onClick={() => void generate()}>
-        {busy ? "Writing quiz…" : `Generate ${count}-question quiz`}
-      </button>
-      {error && <p className="error">{error}</p>}
-      {attempts.length > 0 && (
-        <>
-          <h3>History</h3>
-          <ul className="list">
-            {attempts.map((a) => {
-              const correct = a.answers.filter((x, k) => x === a.questions[k].answerIndex).length;
-              const titles = readings.filter((r) => a.readingIds.includes(r.id)).map((r) => r.title);
-              return (
-                <li key={a.id} className="row">
-                  <div className="grow">
-                    <div className="strong">{titles.length ? titles.join(", ") : "Missed-question drill"}</div>
-                    <div className="muted small">
-                      {new Date(a.createdAt).toLocaleString()} · {a.finished ? `${correct}/${a.questions.length}` : "in progress"}
-                    </div>
-                  </div>
-                  <button onClick={() => setActive(a)}>{a.finished ? "Review" : "Resume"}</button>
-                  <button
-                    onClick={() => void start(a.questions, a.readingIds)}
-                    title="Retake the same questions"
-                  >
-                    Retake
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </>
-      )}
-    </div>
-  );
-}
-
 function AskPanel() {
   const { readings, settings, nowPlaying } = useStore();
   const [selected, setSelected] = useState<string[]>(nowPlaying ? [nowPlaying.id] : []);
@@ -356,8 +140,6 @@ export function Study() {
         {(
           [
             ["brief", "Reading briefs"],
-            ["quiz", "Practice quizzes"],
-            ["review", "Missed questions"],
             ["ask", "Ask the readings"],
           ] as [Tab, string][]
         ).map(([id, label]) => (
@@ -368,8 +150,6 @@ export function Study() {
       </div>
       <div className="card">
         {tab === "brief" && <BriefPanel />}
-        {tab === "quiz" && <QuizPanel />}
-        {tab === "review" && <QuizPanel reviewOnly />}
         {tab === "ask" && <AskPanel />}
       </div>
     </section>

@@ -128,7 +128,7 @@ export function Listen() {
               aria-label="Text size"
             />
           </label>
-          <button onClick={() => go("study")}>Brief &amp; quiz →</button>
+          <button onClick={() => go("study")}>Brief &amp; Q&amp;A →</button>
         </div>
       </div>
       {showText ? (

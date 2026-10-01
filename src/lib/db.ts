@@ -1,14 +1,13 @@
 import { openDB, type DBSchema, type IDBPDatabase } from "idb";
-import type { Paper, QuizAttempt, Reading, Task } from "./types";
+import type { Paper, Reading, Task } from "./types";
 
 interface StudyDB extends DBSchema {
   readings: { key: string; value: Reading };
   tasks: { key: string; value: Task };
   papers: { key: string; value: Paper };
-  quizzes: { key: string; value: QuizAttempt };
 }
 
-export type StoreName = "readings" | "tasks" | "papers" | "quizzes";
+export type StoreName = "readings" | "tasks" | "papers";
 type ValueOf<S extends StoreName> = StudyDB[S]["value"];
 
 let dbPromise: Promise<IDBPDatabase<StudyDB>> | null = null;
@@ -19,7 +18,6 @@ function db() {
       d.createObjectStore("readings", { keyPath: "id" });
       d.createObjectStore("tasks", { keyPath: "id" });
       d.createObjectStore("papers", { keyPath: "id" });
-      d.createObjectStore("quizzes", { keyPath: "id" });
     },
   });
   return dbPromise;
@@ -47,7 +45,6 @@ export interface Backup {
   readings: Reading[];
   tasks: Task[];
   papers: Paper[];
-  quizzes: QuizAttempt[];
 }
 
 export async function exportAll(): Promise<Backup> {
@@ -57,16 +54,14 @@ export async function exportAll(): Promise<Backup> {
     readings: await all("readings"),
     tasks: await all("tasks"),
     papers: await all("papers"),
-    quizzes: await all("quizzes"),
   };
 }
 
 export async function importAll(backup: Backup): Promise<void> {
   const d = await db();
-  const tx = d.transaction(["readings", "tasks", "papers", "quizzes"], "readwrite");
+  const tx = d.transaction(["readings", "tasks", "papers"], "readwrite");
   for (const r of backup.readings ?? []) tx.objectStore("readings").put(r);
   for (const t of backup.tasks ?? []) tx.objectStore("tasks").put(t);
   for (const p of backup.papers ?? []) tx.objectStore("papers").put(p);
-  for (const q of backup.quizzes ?? []) tx.objectStore("quizzes").put(q);
   await tx.done;
 }

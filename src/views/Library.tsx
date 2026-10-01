@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { playOrder, useStore } from "../store";
-import { ACCEPTED_FILES, importFile, importUrl } from "../lib/importers";
+import { ACCEPTED_FILES, importAny, importUrl } from "../lib/importers";
 import { newId } from "../lib/db";
 import { cleanText, formatDuration, listenMinutes, remainingWords, wordCount } from "../lib/text";
 import type { Reading } from "../lib/types";
@@ -58,14 +58,18 @@ export function Library() {
     localStorage.setItem("acsc-speedrun.lastCourse", c);
   };
 
+  const nextOrder = (c: string) => {
+    const inCourse = readings.filter((r) => r.course === c);
+    return inCourse.length ? Math.max(...inCourse.map((r) => r.order)) + 1 : 1;
+  };
+
   const add = async (title: string, text: string, extra: Partial<Reading> = {}) => {
     const c = course.trim() || "Unsorted";
-    const inCourse = readings.filter((r) => r.course === c);
     const reading: Reading = {
       id: newId(),
       title: title.trim() || "Untitled reading",
       course: c,
-      order: inCourse.length ? Math.max(...inCourse.map((r) => r.order)) + 1 : 1,
+      order: nextOrder(c),
       text,
       wordCount: wordCount(text),
       position: 0,
@@ -79,17 +83,26 @@ export function Library() {
   const onFiles = async (files: FileList | null) => {
     if (!files?.length) return;
     setError("");
+    // `readings` won't refresh mid-loop, so track play order locally.
+    let order = nextOrder(course.trim() || "Unsorted");
+    let added = 0;
+    const problems: string[] = [];
     for (const f of Array.from(files)) {
       setBusy(`Importing ${f.name}…`);
       try {
-        const doc = await importFile(f);
-        if (!doc.text.trim()) throw new Error("no text found (scanned PDFs need OCR first)");
-        await add(doc.title, doc.text);
+        const docs = (await importAny(f)).filter((d) => d.text.trim());
+        if (!docs.length) throw new Error("no text found (scanned PDFs need OCR first)");
+        for (const doc of docs) {
+          setBusy(`Importing ${f.name}: ${doc.title}`);
+          await add(doc.title, doc.text, { order: order++ });
+          added++;
+        }
       } catch (e) {
-        setError(`${f.name}: ${e instanceof Error ? e.message : e}`);
+        problems.push(`${f.name}: ${e instanceof Error ? e.message : e}`);
       }
     }
-    setBusy("");
+    setBusy(added ? `Added ${added} reading${added === 1 ? "" : "s"}.` : "");
+    setError(problems.join("\n"));
   };
 
   const onUrl = async () => {
@@ -137,7 +150,7 @@ export function Library() {
             void onFiles(e.dataTransfer.files);
           }}
         >
-          <p>Drop PDF, Word (.docx), HTML, Markdown, or text files here</p>
+          <p>Drop PDF, Word, HTML, or text files, or a whole offline course download (.zip / .epub), here</p>
           <input type="file" multiple accept={ACCEPTED_FILES} onChange={(e) => void onFiles(e.target.files)} />
         </div>
         <div className="row">

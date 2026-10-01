@@ -14,7 +14,7 @@ function loadSettings(): Settings {
   }
 }
 
-export type View = "today" | "library" | "listen" | "study" | "papers" | "tasks" | "settings";
+export type View = "today" | "library" | "listen" | "search" | "study" | "papers" | "tasks" | "settings";
 
 /** Readings in play order: by course, then the course's order field. */
 export function playOrder(readings: Reading[]): Reading[] {
@@ -39,7 +39,8 @@ interface Store {
   sentenceIndex: number;
   word: { s: number; start: number; len: number } | null;
   playing: boolean;
-  open(reading: Reading, play?: boolean): void;
+  /** Load a reading into the player, optionally at a specific sentence. */
+  open(reading: Reading, play?: boolean, startAt?: number): void;
   narrator: Narrator;
 }
 
@@ -68,7 +69,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   nowPlayingRef.current = nowPlaying;
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
-  const openRef = useRef<(r: Reading, play?: boolean) => void>(() => {});
+  const openRef = useRef<Store["open"]>(() => {});
 
   const saveReading = useCallback(async (input: Reading) => {
     // The narrator owns the live listening position; never let a stale copy rewind it.
@@ -132,12 +133,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   );
 
   const open = useCallback(
-    (reading: Reading, play = false) => {
+    (reading: Reading, play = false, startAt?: number) => {
       const s = toSentences(reading.text);
       setNowPlaying(reading);
       nowPlayingRef.current = reading;
       setSentences(s);
-      narrator.load(s, reading.completed ? 0 : reading.position);
+      narrator.load(s, startAt ?? (reading.completed ? 0 : reading.position));
       if (play) narrator.play();
     },
     [narrator],

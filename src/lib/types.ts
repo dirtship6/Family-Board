@@ -28,23 +28,6 @@ export interface StudyBrief {
   likelyTested: string[];
 }
 
-export interface QuizQuestion {
-  question: string;
-  choices: string[];
-  answerIndex: number;
-  explanation: string;
-  sourceTitle: string;
-}
-
-export interface QuizAttempt {
-  id: string;
-  createdAt: number;
-  readingIds: string[];
-  questions: QuizQuestion[];
-  answers: (number | null)[];
-  finished: boolean;
-}
-
 export type TaskKind = "reading" | "quiz" | "paper" | "exam" | "discussion" | "other";
 
 export interface Task {
