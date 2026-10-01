@@ -175,6 +175,17 @@ export function Listen() {
           <button onClick={() => go("study")}>Brief &amp; Q&amp;A →</button>
         </div>
       </div>
+      {nowPlaying.links?.length ? (
+        <div className="page-links">
+          <span className="muted small">On this page, outside the app:</span>
+          {nowPlaying.links.map((l) => (
+            <a key={l.url} className="page-link" href={l.url} target="_blank" rel="noreferrer">
+              {l.kind === "video" ? "▶ " : "↗ "}
+              {l.label.length > 60 ? `${l.label.slice(0, 58)}…` : l.label}
+            </a>
+          ))}
+        </div>
+      ) : null}
       {showText ? (
         <article ref={articleRef} className="reading-text" style={{ fontSize: settings.fontSize }}>
           {paragraphs.map((p, i) => (

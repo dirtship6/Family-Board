@@ -16,6 +16,14 @@ export interface Reading {
   createdAt: number;
   brief?: StudyBrief;
   notes?: string;
+  /** Videos and outside articles this lesson page points to. */
+  links?: ReadingLink[];
+}
+
+export interface ReadingLink {
+  label: string;
+  url: string;
+  kind: "video" | "link";
 }
 
 export interface StudyBrief {

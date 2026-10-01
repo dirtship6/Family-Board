@@ -390,3 +390,13 @@ mark.word, .hit-text mark { background: var(--word); }
 .chips { display: inline-flex; gap: 4px; flex-wrap: wrap; vertical-align: middle; }
 .source-chip { font-family: var(--font-hud); font-size: 0.72rem; padding: 1px 7px; border-radius: 3px; color: var(--amber); border-color: color-mix(in srgb, var(--amber) 45%, var(--border)); }
 .notice.warn { border-color: var(--amber); }
+
+/* Lesson page links and import summary */
+.page-links { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 10px auto 0; max-width: 72ch; }
+.page-link {
+  font-family: var(--font-hud); font-size: 0.78rem; text-decoration: none;
+  color: var(--amber); border: 1px solid color-mix(in srgb, var(--amber) 45%, var(--border));
+  border-radius: 3px; padding: 2px 8px; background: var(--bg-deep);
+}
+.page-link:hover { border-color: var(--amber); }
+.import-summary p { margin: 6px 0 0; }

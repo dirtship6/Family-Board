@@ -41,3 +41,27 @@ describe("text", () => {
     expect(remainingWords({ wordCount: 1000, position: 10, completed: true })).toBe(0);
   });
 });
+
+import { stripRunningLines } from "../src/lib/text";
+describe("stripRunningLines", () => {
+  const WORDS = "alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo lima mike november oscar papa".split(" ");
+  // Real prose differs in words between pages, not just in numbers.
+  const body = (page: number) => Array.from({ length: 6 }, (_, j) => `The ${WORDS[(page * 6 + j) % 16]} ${WORDS[(page + j * 3) % 16]} leader acts.`);
+  it("removes repeated headers, page numbers, and JSTOR stamps but keeps body text", () => {
+    const pages = Array.from({ length: 6 }, (_, i) => [
+      "Nature and Scope of Toxic Leadership",
+      `This content downloaded from 10.0.0.${i} on Fri, 2 Feb 2024`,
+      "All use subject to https://about.jstor.org/terms",
+      ...body(i),
+      "",
+      String(i + 1),
+    ]);
+    const out = stripRunningLines(pages);
+    expect(out[0]).toEqual([...body(0), ""]);
+    expect(out[5]).toEqual([...body(5), ""]);
+  });
+
+  it("leaves short documents alone", () => {
+    expect(stripRunningLines([["Title", "Text one."], ["Title", "Text two."]])).toEqual([["Title", "Text one."], ["Title", "Text two."]]);
+  });
+});

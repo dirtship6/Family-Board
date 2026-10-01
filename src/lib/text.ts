@@ -109,3 +109,35 @@ export function remainingWords(r: { wordCount: number; position: number; complet
   if (r.completed) return 0;
   return Math.max(0, r.wordCount - r.position * 18);
 }
+
+/**
+ * Removes running headers/footers from PDF pages: lines repeated (ignoring numbers) on many pages,
+ * bare page numbers, and download stamps. Each page is an array of lines; "" marks a paragraph break.
+ */
+export function stripRunningLines(pages: string[][]): string[][] {
+  const norm = (l: string) => l.toLowerCase().replace(/\d+/g, "#").replace(/[^a-z#]+/g, " ").trim();
+  // Headers and footers live in the top or bottom few lines of a page; body text is never touched.
+  const EDGE = 4;
+  const edgeIndexes = (page: string[]) => {
+    const filled = page.map((l, i) => (l.trim() ? i : -1)).filter((i) => i >= 0);
+    return new Set([...filled.slice(0, EDGE), ...filled.slice(-EDGE)]);
+  };
+  const counts = new Map<string, number>();
+  for (const page of pages) {
+    const edges = edgeIndexes(page);
+    const keys = new Set(page.filter((_, i) => edges.has(i)).map(norm).filter(Boolean));
+    for (const key of keys) counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  const threshold = Math.max(3, Math.ceil(pages.length * 0.3));
+  const isNoise = (line: string) => {
+    const t = line.trim();
+    if (/^(page\s*)?[\divxlc]{1,6}(\s*(of|\/)\s*\d+)?$/i.test(t)) return true; // page numbers, incl. roman
+    if (/^this content downloaded from|^all use subject to https?:\/\/about\.jstor\.org/i.test(t)) return true;
+    const key = norm(t);
+    return t.length < 200 && key.length > 0 && (counts.get(key) ?? 0) >= threshold;
+  };
+  return pages.map((page) => {
+    const edges = edgeIndexes(page);
+    return page.filter((l, i) => !(l.trim() && edges.has(i) && isNoise(l)));
+  });
+}

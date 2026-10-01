@@ -1,10 +1,30 @@
 // Extracts plain text from the file types ACSC readings usually come in.
-import { cleanText } from "./text";
+import { COURSE_DATA_PATH, describeFile, emptyModules, extractRefs, parseCourseData, stripBoilerplate } from "./canvas";
+import { cleanText, stripRunningLines } from "./text";
+import type { ReadingLink, TaskKind } from "./types";
 
 export interface ImportedDoc {
   title: string;
   text: string;
+  author?: string;
+  year?: string;
+  /** Videos and outside articles referenced by this page that couldn't be imported. */
+  links?: ReadingLink[];
+  /** "page" for an LMS lesson page; otherwise a document. */
+  kind?: "page";
 }
+
+/** Everything one dropped file produced. Course packages can also yield tasks and paper prompts. */
+export interface ImportResult {
+  docs: ImportedDoc[];
+  /** Course name from the package itself (e.g. a Canvas export's title). */
+  course?: string;
+  tasks?: { title: string; kind: TaskKind }[];
+  papers?: { title: string; prompt: string; wordTarget?: number }[];
+  notices?: string[];
+}
+
+export type Progress = (message: string) => void;
 
 function baseName(name: string): string {
   return name.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim();
@@ -15,7 +35,7 @@ async function pdfToText(file: File): Promise<string> {
   const workerUrl = (await import("pdfjs-dist/build/pdf.worker.min.mjs?url")).default;
   pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
   const doc = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise;
-  const pages: string[] = [];
+  const pages: string[][] = [];
   for (let i = 1; i <= doc.numPages; i++) {
     const page = await doc.getPage(i);
     const content = await page.getTextContent();
@@ -38,9 +58,11 @@ async function pdfToText(file: File): Promise<string> {
       lastY = y;
     }
     if (line) lines.push(line);
-    pages.push(lines.join("\n"));
+    // JSTOR prepends a terms-of-use cover sheet; it isn't part of the reading.
+    if (i === 1 && lines.some((l) => /JSTOR is a not-for-profit service/i.test(l))) continue;
+    pages.push(lines);
   }
-  return pages.join("\n\n");
+  return stripRunningLines(pages).map((p) => p.join("\n")).join("\n\n");
 }
 
 async function docxToText(file: File): Promise<string> {
@@ -49,15 +71,42 @@ async function docxToText(file: File): Promise<string> {
   return value;
 }
 
+const BLOCK_TAGS = new Set([
+  "ADDRESS", "ARTICLE", "ASIDE", "BLOCKQUOTE", "BR", "DD", "DIV", "DL", "DT", "FIGCAPTION", "FIGURE", "FOOTER",
+  "H1", "H2", "H3", "H4", "H5", "H6", "HEADER", "HR", "LI", "MAIN", "OL", "P", "PRE", "SECTION", "TABLE",
+  "TBODY", "TD", "TH", "THEAD", "TR", "UL",
+]);
+
+/**
+ * Visible text of an HTML page, one block per paragraph. Walks the whole tree so text that sits
+ * loose inside table cells or divs (common in LMS pages) is kept, and nothing is read twice.
+ */
 export function htmlToText(html: string): { title: string; text: string } {
   const doc = new DOMParser().parseFromString(html, "text/html");
-  doc.querySelectorAll("script,style,nav,header,footer,aside,noscript,svg").forEach((n) => n.remove());
+  doc.querySelectorAll("script,style,nav,header,footer,aside,noscript,svg,iframe,button,select,template").forEach((n) => n.remove());
   const root = doc.querySelector("article, main") ?? doc.body;
-  const blocks = Array.from(root.querySelectorAll("h1,h2,h3,h4,p,li,blockquote"))
-    .map((n) => n.textContent?.trim() ?? "")
-    .filter(Boolean);
-  const text = blocks.length ? blocks.join("\n\n") : root.textContent ?? "";
-  return { title: doc.title, text };
+  const blocks: string[] = [];
+  let buf = "";
+  const flush = () => {
+    const t = buf.replace(/\s+/g, " ").trim();
+    if (t) blocks.push(t);
+    buf = "";
+  };
+  const walk = (node: Node) => {
+    for (const child of Array.from(node.childNodes)) {
+      if (child.nodeType === Node.TEXT_NODE) buf += child.textContent ?? "";
+      else if (child.nodeType === Node.ELEMENT_NODE) {
+        const block = BLOCK_TAGS.has((child as Element).tagName);
+        if (block) flush();
+        walk(child);
+        if (block) flush();
+        else if ((child as Element).tagName === "IMG") buf += " ";
+      }
+    }
+  };
+  if (root) walk(root);
+  flush();
+  return { title: doc.title, text: blocks.join("\n\n") };
 }
 
 export async function importFile(file: File): Promise<ImportedDoc> {
@@ -127,7 +176,77 @@ async function epubToDocs(files: Record<string, Uint8Array>, bookName: string): 
   return docs;
 }
 
-async function zipToDocs(files: Record<string, Uint8Array>): Promise<ImportedDoc[]> {
+function wordTargetFrom(prompt: string): number | undefined {
+  const m = prompt.match(/(\d[\d,]{2,5})\s*(?:[-–to]+\s*(\d[\d,]{2,5}))?\s*words?/i);
+  if (!m) return undefined;
+  return Number((m[2] ?? m[1]).replace(/,/g, ""));
+}
+
+/** A Canvas "Download course content" export, imported in module order. */
+async function canvasToResult(files: Record<string, Uint8Array>, dataPath: string, onProgress?: Progress): Promise<ImportResult> {
+  const course = parseCourseData(decode(files[dataPath]));
+  const root = dataPath.replace(/viewer\/course-data\.js$/, "");
+  const used = new Set<string>();
+  const docs: ImportedDoc[] = [];
+  const tasks: NonNullable<ImportResult["tasks"]> = [];
+  const papers: NonNullable<ImportResult["papers"]> = [];
+  const seenTitles = new Set<string>();
+
+  const importLinkedFile = async (rel: string) => {
+    const full = root + rel;
+    const name = rel.split("/").pop()!;
+    if (used.has(full) || !files[full] || !/\.(pdf|docx|txt|md)$/i.test(name)) return;
+    used.add(full);
+    onProgress?.(`Importing ${name}`);
+    try {
+      const doc = await importFile(new File([files[full] as BlobPart], name));
+      if (!doc.text.trim()) return;
+      docs.push({ ...doc, ...describeFile(name) });
+    } catch {
+      // Skip unreadable files; the rest of the course still imports.
+    }
+  };
+
+  for (const mod of course.modules) {
+    for (const item of mod.items) {
+      const html = item.content ?? "";
+      const refs = html ? extractRefs(html) : [];
+      const text = html ? cleanText(stripBoilerplate(htmlToText(html).text)) : "";
+      const key = item.title.trim().toLowerCase();
+      // Pages under ~100 words are admin notes (notification settings, "click next"), not lesson content.
+      if (item.type === "WikiPage" && text.split(/\s+/).length >= 100) {
+        const links = refs.filter((r) => r.url).map((r) => ({ label: r.label, url: r.url!, kind: r.kind as ReadingLink["kind"] }));
+        docs.push({ title: item.title.trim(), text, kind: "page", links: links.length ? links : undefined });
+      } else if (item.type === "Assignment" && !seenTitles.has(key)) {
+        seenTitles.add(key);
+        tasks.push({ title: item.title.trim(), kind: "paper" });
+        if (text) papers.push({ title: item.title.trim(), prompt: text, wordTarget: wordTargetFrom(text) });
+      } else if (item.type.includes("Quiz") && !seenTitles.has(key)) {
+        seenTitles.add(key);
+        tasks.push({ title: item.title.trim(), kind: "quiz" });
+      }
+      for (const r of refs) if (r.path) await importLinkedFile(r.path);
+    }
+  }
+
+  // Course files no page links to (e.g. extra references) go at the end.
+  for (const path of Object.keys(files).sort(naturalCompare)) {
+    if (path.startsWith(root + "viewer/files/") && !/(^|\/)(__MACOSX|\.)/.test(path)) await importLinkedFile(path.slice(root.length));
+  }
+
+  const notices: string[] = [];
+  const empty = emptyModules(course);
+  if (empty.length) {
+    notices.push(
+      `${empty.join(", ")} came down without content, usually because ${empty.length === 1 ? "it was" : "they were"} still locked when the course was downloaded. Download again once ${empty.length === 1 ? "it unlocks" : "they unlock"} and import the new zip; anything already in your library is skipped.`,
+    );
+  }
+  return { docs, course: course.title?.trim(), tasks, papers, notices };
+}
+
+async function zipToDocs(files: Record<string, Uint8Array>, onProgress?: Progress): Promise<ImportResult> {
+  const dataPath = Object.keys(files).find((p) => COURSE_DATA_PATH.test(p) && !p.includes("__MACOSX"));
+  if (dataPath) return canvasToResult(files, dataPath, onProgress);
   const docs: ImportedDoc[] = [];
   const paths = Object.keys(files)
     .filter((p) => !p.endsWith("/") && !/(^|\/)(__MACOSX|\.)/.test(p))
@@ -137,10 +256,11 @@ async function zipToDocs(files: Record<string, Uint8Array>): Promise<ImportedDoc
     const folder = path.split("/").slice(0, -1).pop();
     try {
       if (/\.(zip|epub)$/i.test(name)) {
-        docs.push(...(await importPackage(new File([files[path] as BlobPart], name))));
+        docs.push(...(await importPackage(new File([files[path] as BlobPart], name), onProgress)).docs);
         continue;
       }
       if (!DOC_EXT.test(name)) continue;
+      onProgress?.(`Importing ${name}`);
       const doc = await importFile(new File([files[path] as BlobPart], name.replace(/\.xhtml$/i, ".html")));
       // Web pages in course packages are often navigation stubs; real documents are always kept.
       if (/\.(html?|xhtml)$/i.test(name) && doc.text.length < MIN_PACKAGE_CHARS) continue;
@@ -152,23 +272,24 @@ async function zipToDocs(files: Record<string, Uint8Array>): Promise<ImportedDoc
       // One unreadable file shouldn't sink the whole package.
     }
   }
-  return docs;
+  return { docs };
 }
 
 /** Unpacks a .zip (e.g. an offline course download) or .epub into separate readings, in order. */
-export async function importPackage(file: File): Promise<ImportedDoc[]> {
+export async function importPackage(file: File, onProgress?: Progress): Promise<ImportResult> {
   const { unzipSync } = await import("fflate");
+  onProgress?.(`Unpacking ${file.name}`);
   const files = unzipSync(new Uint8Array(await file.arrayBuffer()));
   if (file.name.toLowerCase().endsWith(".epub") || files["META-INF/container.xml"]) {
-    return epubToDocs(files, baseName(file.name));
+    return { docs: await epubToDocs(files, baseName(file.name)) };
   }
-  return zipToDocs(files);
+  return zipToDocs(files, onProgress);
 }
 
 /** Any supported file → one or more readings. */
-export async function importAny(file: File): Promise<ImportedDoc[]> {
-  if (/\.(zip|epub)$/i.test(file.name)) return importPackage(file);
-  return [await importFile(file)];
+export async function importAny(file: File, onProgress?: Progress): Promise<ImportResult> {
+  if (/\.(zip|epub)$/i.test(file.name)) return importPackage(file, onProgress);
+  return { docs: [await importFile(file)] };
 }
 
 export async function importUrl(url: string): Promise<ImportedDoc> {

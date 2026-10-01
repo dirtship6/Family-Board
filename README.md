@@ -7,6 +7,13 @@ A browser-based study companion for Air Command and Staff College. It's built to
 **1. Listen to every reading with follow-along text**
 - Import PDFs, Word (.docx), HTML, Markdown, or text files, or paste text or fetch a public URL. Group readings by course and set the play order.
 - Drop in a whole offline course download (.zip) or e-book (.epub). Every document or chapter becomes its own reading, in lesson order. Navigation and cover pages are skipped.
+- **Canvas course downloads** (the ACSC/Global College "download course content" zip) get special handling:
+  - Everything imports in the order the course presents it: each lesson page, then the readings that page assigns.
+  - PDF file names become proper titles, authors and years for citations.
+  - Each lesson page's videos and outside articles appear as links above its text.
+  - Assignments and progress checks become Tasks, and each assignment's instructions pre-fill a Papers workspace, including the word limit when one is stated.
+  - Running headers, page numbers, copyright footers and JSTOR stamps are stripped from PDFs.
+  - Lessons that downloaded empty (still locked) are flagged. Importing a newer download later adds only what's new.
 - Narration uses your device's built-in voices. Speed goes from 0.75× to 3.5×, and you can switch voices.
 - The current sentence (and word, where the voice supports it) is highlighted and auto-scrolls into view. Click any sentence to jump there. Turn the text off for listening-only mode, e.g. while driving or working out.
 - A persistent player bar keeps narration going while you use other tabs. It has sentence and paragraph skip, and keyboard shortcuts: space to play/pause, ←/→ for sentences, ↑/↓ for paragraphs.

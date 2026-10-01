@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { playOrder, useStore } from "../store";
 import { ACCEPTED_FILES, importAny, importUrl } from "../lib/importers";
+import * as db from "../lib/db";
 import { newId } from "../lib/db";
 import { cleanText, formatDuration, listenMinutes, remainingWords, wordCount } from "../lib/text";
 import type { Reading } from "../lib/types";
@@ -42,10 +43,21 @@ function ReadingEditor({ reading, onDone }: { reading: Reading; onDone(): void }
   );
 }
 
+interface ImportSummary {
+  courses: string[];
+  readings: number;
+  pages: number;
+  skipped: number;
+  tasks: number;
+  papers: number;
+  notices: string[];
+}
+
 export function Library() {
   const { readings, saveReading, deleteReading, open, go, settings, nowPlaying } = useStore();
   const [course, setCourse] = useState(() => localStorage.getItem("acsc-speedrun.lastCourse") ?? "");
   const [busy, setBusy] = useState("");
+  const [summary, setSummary] = useState<ImportSummary | null>(null);
   const [error, setError] = useState("");
   const [pasteTitle, setPasteTitle] = useState("");
   const [pasteText, setPasteText] = useState("");
@@ -83,25 +95,64 @@ export function Library() {
   const onFiles = async (files: FileList | null) => {
     if (!files?.length) return;
     setError("");
-    // `readings` won't refresh mid-loop, so track play order locally.
-    let order = nextOrder(course.trim() || "Unsorted");
-    let added = 0;
+    setSummary(null);
     const problems: string[] = [];
+    const sum: ImportSummary = { courses: [], readings: 0, pages: 0, skipped: 0, tasks: 0, papers: 0, notices: [] };
+    // `readings` won't refresh mid-loop, so track what exists and the play order locally.
+    const have = new Set(readings.map((r) => `${r.course}\u0000${r.title}`.toLowerCase()));
+    const orders = new Map<string, number>();
+    const orderFor = (c: string) => {
+      const n = orders.get(c) ?? nextOrder(c);
+      orders.set(c, n + 1);
+      return n;
+    };
+    const existingTasks = new Set((await db.all("tasks")).map((t) => `${t.course}\u0000${t.title}`.toLowerCase()));
+    const existingPapers = new Set((await db.all("papers")).map((p) => `${p.course}\u0000${p.title}`.toLowerCase()));
+
     for (const f of Array.from(files)) {
       setBusy(`Importing ${f.name}…`);
       try {
-        const docs = (await importAny(f)).filter((d) => d.text.trim());
-        if (!docs.length) throw new Error("no text found (scanned PDFs need OCR first)");
+        const result = await importAny(f, (m) => setBusy(`${f.name}: ${m}`));
+        const docs = result.docs.filter((d) => d.text.trim());
+        if (!docs.length && !result.tasks?.length) throw new Error("no text found (scanned PDFs need OCR first)");
+        // A course package names its own course; loose files go to the course typed above.
+        const c = result.course || course.trim() || "Unsorted";
+        if (result.course && !sum.courses.includes(c)) sum.courses.push(c);
         for (const doc of docs) {
-          setBusy(`Importing ${f.name}: ${doc.title}`);
-          await add(doc.title, doc.text, { order: order++ });
-          added++;
+          const key = `${c}\u0000${doc.title}`.toLowerCase();
+          if (have.has(key)) {
+            sum.skipped++;
+            continue;
+          }
+          have.add(key);
+          await add(doc.title, doc.text, { course: c, order: orderFor(c), author: doc.author, year: doc.year, links: doc.links });
+          sum[doc.kind === "page" ? "pages" : "readings"]++;
         }
+        for (const t of result.tasks ?? []) {
+          const key = `${c}\u0000${t.title}`.toLowerCase();
+          if (existingTasks.has(key)) continue;
+          existingTasks.add(key);
+          await db.put("tasks", { id: db.newId(), title: t.title, course: c, kind: t.kind, done: false, createdAt: Date.now() + sum.tasks });
+          sum.tasks++;
+        }
+        for (const p of result.papers ?? []) {
+          const key = `${c}\u0000${p.title}`.toLowerCase();
+          if (existingPapers.has(key)) continue;
+          existingPapers.add(key);
+          await db.put("papers", {
+            id: db.newId(), title: p.title, course: c, prompt: p.prompt, rubric: "", wordTarget: p.wordTarget ?? 0,
+            thesis: "", outline: "", draft: "", sourceIds: [], coaching: {}, updatedAt: Date.now(),
+          });
+          sum.papers++;
+        }
+        sum.notices.push(...(result.notices ?? []));
       } catch (e) {
         problems.push(`${f.name}: ${e instanceof Error ? e.message : e}`);
       }
     }
-    setBusy(added ? `Added ${added} reading${added === 1 ? "" : "s"}.` : "");
+    setBusy("");
+    setSummary(sum);
+    if (sum.courses.length === 1) rememberCourse(sum.courses[0]);
     setError(problems.join("\n"));
   };
 
@@ -151,7 +202,16 @@ export function Library() {
           }}
         >
           <p>Drop PDF, Word, HTML, or text files, or a whole offline course download (.zip / .epub), here</p>
-          <input type="file" multiple accept={ACCEPTED_FILES} onChange={(e) => void onFiles(e.target.files)} />
+          <input
+            type="file"
+            multiple
+            accept={ACCEPTED_FILES}
+            onChange={(e) => {
+              const input = e.target;
+              // Clear afterwards so choosing the same file again (e.g. a re-downloaded course) still imports.
+              void onFiles(input.files).finally(() => (input.value = ""));
+            }}
+          />
         </div>
         <div className="row">
           <input className="grow" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="…or a public URL to an article or PDF" />
@@ -174,6 +234,26 @@ export function Library() {
           </button>
         </details>
         {busy && <p className="muted">{busy}</p>}
+        {summary && (
+          <div className="notice import-summary">
+            <strong>
+              Imported{summary.courses.length ? ` ${summary.courses.join(", ")}` : ""}:
+            </strong>{" "}
+            {[
+              summary.pages && `${summary.pages} lesson page${summary.pages === 1 ? "" : "s"}`,
+              summary.readings && `${summary.readings} reading${summary.readings === 1 ? "" : "s"}`,
+              summary.tasks && `${summary.tasks} task${summary.tasks === 1 ? "" : "s"}`,
+              summary.papers && `${summary.papers} assignment${summary.papers === 1 ? "" : "s"} set up in Papers`,
+              summary.skipped && `${summary.skipped} already in your library (skipped)`,
+            ]
+              .filter(Boolean)
+              .join(" · ") || "nothing new"}
+            .
+            {summary.notices.map((n, i) => (
+              <p key={i} className="small">⚠ {n}</p>
+            ))}
+          </div>
+        )}
         {error && <p className="error">{error}</p>}
       </div>
 
@@ -210,6 +290,7 @@ export function Library() {
                       <div className="muted small">
                         {r.author && `${r.author} · `}
                         {r.wordCount.toLocaleString()} words · {formatDuration(listenMinutes(r.wordCount, settings.rate))}
+                        {r.links?.length ? ` · ${r.links.length} video/link${r.links.length === 1 ? "" : "s"}` : ""}
                         {r.brief && " · brief ready"}
                       </div>
                     </div>
