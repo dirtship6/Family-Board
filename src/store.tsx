@@ -1,8 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import * as db from "./lib/db";
 import { Narrator, loadVoices, rankVoices } from "./lib/narrator";
+import { noteFromReading } from "./lib/notes";
 import { toSentences, type Sentence } from "./lib/text";
-import { DEFAULT_SETTINGS, type Reading, type Settings } from "./lib/types";
+import { DEFAULT_SETTINGS, type Note, type Reading, type Settings } from "./lib/types";
 
 const SETTINGS_KEY = "acsc-speedrun.settings";
 
@@ -14,7 +15,7 @@ function loadSettings(): Settings {
   }
 }
 
-export type View = "today" | "library" | "listen" | "search" | "study" | "papers" | "tasks" | "settings";
+export type View = "today" | "library" | "listen" | "search" | "notes" | "study" | "papers" | "tasks" | "settings";
 
 /** Readings in play order: by course, then the course's order field. */
 export function playOrder(readings: Reading[]): Reading[] {
@@ -42,6 +43,15 @@ interface Store {
   /** Load a reading into the player, optionally at a specific sentence. */
   open(reading: Reading, play?: boolean, startAt?: number): void;
   narrator: Narrator;
+  // Notebook
+  notes: Note[];
+  saveNote(n: Note): Promise<void>;
+  deleteNote(id: string): Promise<void>;
+  reloadNotes(): Promise<void>;
+  /** Save the sentence being narrated right now (or the given range/selection) to the notebook. */
+  captureNote(range?: { start: number; end: number; quote?: string }): Promise<void>;
+  toast: { text: string; action?: { label: string; run(): void } } | null;
+  showToast(text: string, action?: { label: string; run(): void }): void;
 }
 
 const Ctx = createContext<Store | null>(null);
@@ -62,6 +72,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [sentenceIndex, setSentenceIndex] = useState(0);
   const [word, setWord] = useState<Store["word"]>(null);
   const [playing, setPlaying] = useState(false);
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [toast, setToast] = useState<Store["toast"]>(null);
+  const toastTimer = useRef<number | undefined>(undefined);
 
   const readingsRef = useRef(readings);
   readingsRef.current = readings;
@@ -149,10 +162,51 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setReadings(await db.all("readings"));
   }, []);
 
+  const reloadNotes = useCallback(async () => {
+    setNotes(await db.all("notes"));
+  }, []);
+
+  const showToast = useCallback((text: string, action?: { label: string; run(): void }) => {
+    window.clearTimeout(toastTimer.current);
+    setToast({ text, action });
+    toastTimer.current = window.setTimeout(() => setToast(null), 5000);
+  }, []);
+
+  const saveNote = useCallback(async (n: Note) => {
+    await db.put("notes", n);
+    setNotes((prev) => [...prev.filter((x) => x.id !== n.id), n]);
+  }, []);
+
+  const deleteNote = useCallback(async (id: string) => {
+    await db.remove("notes", id);
+    setNotes((prev) => prev.filter((x) => x.id !== id));
+  }, []);
+
+  const sentencesRef = useRef(sentences);
+  sentencesRef.current = sentences;
+  const captureNote = useCallback(
+    async (range?: { start: number; end: number; quote?: string }) => {
+      const r = nowPlayingRef.current;
+      if (!r) return;
+      const i = narrator.current;
+      const n = noteFromReading(r, sentencesRef.current, range?.start ?? i, range?.end ?? i, range?.quote);
+      await saveNote(n);
+      showToast("Saved to notes", {
+        label: "Undo",
+        run: () => {
+          void deleteNote(n.id);
+          setToast(null);
+        },
+      });
+    },
+    [narrator, saveNote, deleteNote, showToast],
+  );
+
   useEffect(() => {
     void reloadReadings();
+    void reloadNotes();
     void loadVoices().then((v) => setVoices(rankVoices(v)));
-  }, [reloadReadings]);
+  }, [reloadReadings, reloadNotes]);
 
   useEffect(() => {
     narrator.rate = settings.rate;
@@ -208,6 +262,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     playing,
     open,
     narrator,
+    notes,
+    saveNote,
+    deleteNote,
+    reloadNotes,
+    captureNote,
+    toast,
+    showToast,
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

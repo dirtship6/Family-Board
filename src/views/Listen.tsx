@@ -3,7 +3,46 @@ import { playOrder, useStore } from "../store";
 import { formatDuration, listenMinutes } from "../lib/text";
 
 export function Listen() {
-  const { nowPlaying, sentences, sentenceIndex, word, narrator, settings, updateSettings, readings, open, go } = useStore();
+  const { nowPlaying, sentences, sentenceIndex, word, narrator, settings, updateSettings, readings, open, go, captureNote } = useStore();
+  const articleRef = useRef<HTMLElement>(null);
+  const [selection, setSelection] = useState<{ start: number; end: number; quote: string; x: number; y: number } | null>(null);
+
+  // Selecting text in the reading offers a "Save to notes" button for exactly that text.
+  useEffect(() => {
+    let t: number | undefined;
+    const onChange = () => {
+      window.clearTimeout(t);
+      t = window.setTimeout(() => {
+        const sel = window.getSelection();
+        const article = articleRef.current;
+        if (!sel || sel.isCollapsed || !article || !sel.rangeCount) return setSelection(null);
+        const range = sel.getRangeAt(0);
+        if (!article.contains(range.commonAncestorContainer)) return setSelection(null);
+        const idx = (n: Node | null) => {
+          const el = n instanceof Element ? n : n?.parentElement;
+          const i = el?.closest<HTMLElement>("[data-i]")?.dataset.i;
+          return i === undefined ? null : Number(i);
+        };
+        const a = idx(range.startContainer);
+        const b = idx(range.endContainer);
+        const quote = sel.toString().replace(/\s+/g, " ").trim();
+        if (a === null || b === null || !quote) return setSelection(null);
+        const rect = range.getBoundingClientRect();
+        setSelection({
+          start: Math.min(a, b),
+          end: Math.max(a, b),
+          quote,
+          x: rect.left + rect.width / 2 + window.scrollX,
+          y: rect.top + window.scrollY,
+        });
+      }, 250);
+    };
+    document.addEventListener("selectionchange", onChange);
+    return () => {
+      document.removeEventListener("selectionchange", onChange);
+      window.clearTimeout(t);
+    };
+  }, []);
   const [showText, setShowText] = useState(true);
   const activeRef = useRef<HTMLSpanElement>(null);
   const [userScrolled, setUserScrolled] = useState(false);
@@ -87,8 +126,13 @@ export function Listen() {
       <span
         key={index}
         ref={active ? activeRef : undefined}
+        data-i={index}
         className={active ? "sentence active" : index < sentenceIndex ? "sentence read" : "sentence"}
-        onClick={() => narrator.seek(index)}
+        onClick={() => {
+          // Don't jump the narration when the click finished a text selection.
+          if (!window.getSelection()?.isCollapsed) return;
+          narrator.seek(index);
+        }}
       >
         {body}{" "}
       </span>
@@ -132,7 +176,7 @@ export function Listen() {
         </div>
       </div>
       {showText ? (
-        <article className="reading-text" style={{ fontSize: settings.fontSize }}>
+        <article ref={articleRef} className="reading-text" style={{ fontSize: settings.fontSize }}>
           {paragraphs.map((p, i) => (
             <p key={i}>{p.map((s) => renderSentence(s.index, s.text))}</p>
           ))}
@@ -142,6 +186,20 @@ export function Listen() {
           <p className="muted">Listening mode. The current sentence:</p>
           <p className="now-sentence">{sentences[sentenceIndex]?.text}</p>
         </div>
+      )}
+      {selection && showText && (
+        <button
+          className="primary selection-save"
+          style={{ left: selection.x, top: selection.y }}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => {
+            void captureNote(selection);
+            window.getSelection()?.removeAllRanges();
+            setSelection(null);
+          }}
+        >
+          ☆ Save to notes
+        </button>
       )}
       {userScrolled && settings.followAlong && showText && (
         <button className="float-btn" onClick={() => setUserScrolled(false)}>

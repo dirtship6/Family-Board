@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { playOrder, useStore } from "../store";
 import { askAboutReadings, generateBrief } from "../lib/claude";
+import { noteFromAI } from "../lib/notes";
 import type { Reading } from "../lib/types";
 import { Markdown } from "./Markdown";
 import { ReadingPicker } from "./ReadingPicker";
@@ -87,7 +88,8 @@ function BriefPanel() {
 }
 
 function AskPanel() {
-  const { readings, settings, nowPlaying } = useStore();
+  const { readings, settings, nowPlaying, saveNote, showToast } = useStore();
+  const [asked, setAsked] = useState("");
   const [selected, setSelected] = useState<string[]>(nowPlaying ? [nowPlaying.id] : []);
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState("");
@@ -98,6 +100,7 @@ function AskPanel() {
     setBusy(true);
     setError("");
     setAnswer("");
+    setAsked(question);
     try {
       await askAboutReadings(settings.apiKey, readings.filter((r) => selected.includes(r.id)), question, setAnswer);
     } catch (e) {
@@ -121,6 +124,18 @@ function AskPanel() {
       </button>
       {error && <p className="error">{error}</p>}
       {answer && <Markdown text={answer} />}
+      {answer && !busy && (
+        <button
+          onClick={async () => {
+            const chosen = readings.filter((r) => selected.includes(r.id));
+            const courses = [...new Set(chosen.map((r) => r.course))];
+            await saveNote(noteFromAI(asked, answer, courses.length === 1 ? courses[0] : "General", chosen.map((r) => r.title)));
+            showToast("Answer saved to notes");
+          }}
+        >
+          ☆ Save answer to notes
+        </button>
+      )}
     </div>
   );
 }

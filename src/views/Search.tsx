@@ -2,6 +2,7 @@ import { useDeferredValue, useMemo, useRef, useState, type ReactNode } from "rea
 import { useStore } from "../store";
 import { highlightRanges, indexReading, parseQuery, search, type IndexedReading } from "../lib/search";
 import { footnote } from "../lib/citations";
+import { noteFromReading } from "../lib/notes";
 
 function Highlighted({ text, terms }: { text: string; terms: string[] }) {
   const ranges = highlightRanges(text, terms);
@@ -17,7 +18,7 @@ function Highlighted({ text, terms }: { text: string; terms: string[] }) {
 }
 
 export function Search() {
-  const { readings, open, go } = useStore();
+  const { readings, open, go, saveNote, deleteNote, showToast } = useStore();
   const [query, setQuery] = useState(() => sessionStorage.getItem("acsc-speedrun.search") ?? "");
   const [course, setCourse] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -58,6 +59,14 @@ export function Search() {
     void navigator.clipboard?.writeText(`“${text}”\n${footnote(r).replace(/\*/g, "")}`);
     setCopied(`${readingId}:${text}`);
     setTimeout(() => setCopied(""), 1500);
+  };
+
+  const saveHit = async (ir: IndexedReading, sentenceIndex: number) => {
+    const r = readings.find((x) => x.id === ir.id);
+    if (!r) return;
+    const n = noteFromReading(r, ir.sentences, sentenceIndex);
+    await saveNote(n);
+    showToast("Saved to notes", { label: "Undo", run: () => void deleteNote(n.id) });
   };
 
   return (
@@ -110,6 +119,7 @@ export function Search() {
                   <div className="hit-actions">
                     <button onClick={() => jump(r.id, h.sentenceIndex, false)}>Read in context</button>
                     <button onClick={() => jump(r.id, h.sentenceIndex, true)}>▶ Listen from here</button>
+                    <button onClick={() => void saveHit(r, h.sentenceIndex)}>☆ Save to notes</button>
                     <button onClick={() => copyQuote(r.id, cur.text)}>
                       {copied === `${r.id}:${cur.text}` ? "Copied ✓" : "Copy quote + footnote"}
                     </button>

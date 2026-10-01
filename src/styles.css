@@ -203,3 +203,20 @@ hr { border: 0; border-top: 1px solid var(--border); margin: 16px 0; }
 .hit-text mark { background: var(--highlight); color: inherit; border-radius: 3px; padding: 0 1px; }
 .hit-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 .hit-actions button { font-size: 0.85rem; padding: 4px 9px; }
+
+/* Notes */
+.note-btn { white-space: nowrap; }
+.note .note-meta { margin-bottom: 4px; }
+.note-quote { margin: 4px 0; padding: 4px 0 4px 12px; border-left: 3px solid var(--accent); font-family: Georgia, serif; line-height: 1.6; white-space: pre-line; }
+.note .citation { margin: 4px 0 8px; }
+.note textarea { margin: 6px 0; }
+kbd { font: inherit; font-size: 0.85em; border: 1px solid var(--border); border-radius: 4px; padding: 0 4px; }
+.toast {
+  position: fixed; left: 50%; transform: translateX(-50%); bottom: 96px; z-index: 30;
+  display: flex; gap: 12px; align-items: center;
+  background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 10px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.25);
+}
+.toast button.link { color: var(--bg); font-weight: 600; }
+.selection-save { position: absolute; z-index: 15; transform: translate(-50%, -110%); box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+@media (max-width: 760px) { .toast { bottom: 140px; } }

@@ -1,25 +1,31 @@
 import { openDB, type DBSchema, type IDBPDatabase } from "idb";
-import type { Paper, Reading, Task } from "./types";
+import type { Note, Paper, Reading, Task } from "./types";
 
 interface StudyDB extends DBSchema {
   readings: { key: string; value: Reading };
   tasks: { key: string; value: Task };
   papers: { key: string; value: Paper };
+  notes: { key: string; value: Note };
 }
 
-export type StoreName = "readings" | "tasks" | "papers";
+export type StoreName = "readings" | "tasks" | "papers" | "notes";
 type ValueOf<S extends StoreName> = StudyDB[S]["value"];
 
 let dbPromise: Promise<IDBPDatabase<StudyDB>> | null = null;
 
 function db() {
-  dbPromise ??= openDB<StudyDB>("acsc-speedrun", 1, {
-    upgrade(d) {
-      d.createObjectStore("readings", { keyPath: "id" });
-      d.createObjectStore("tasks", { keyPath: "id" });
-      d.createObjectStore("papers", { keyPath: "id" });
+  dbPromise ??= openDB<StudyDB>("acsc-speedrun", 2, {
+    upgrade(d, oldVersion) {
+      if (oldVersion < 1) {
+        d.createObjectStore("readings", { keyPath: "id" });
+        d.createObjectStore("tasks", { keyPath: "id" });
+        d.createObjectStore("papers", { keyPath: "id" });
+      }
+      if (oldVersion < 2) d.createObjectStore("notes", { keyPath: "id" });
     },
   });
+  // Ask the browser not to evict this data under storage pressure: the notebook is meant to last the whole degree.
+  void navigator.storage?.persist?.().catch(() => {});
   return dbPromise;
 }
 
@@ -45,6 +51,7 @@ export interface Backup {
   readings: Reading[];
   tasks: Task[];
   papers: Paper[];
+  notes?: Note[];
 }
 
 export async function exportAll(): Promise<Backup> {
@@ -54,14 +61,16 @@ export async function exportAll(): Promise<Backup> {
     readings: await all("readings"),
     tasks: await all("tasks"),
     papers: await all("papers"),
+    notes: await all("notes"),
   };
 }
 
 export async function importAll(backup: Backup): Promise<void> {
   const d = await db();
-  const tx = d.transaction(["readings", "tasks", "papers"], "readwrite");
+  const tx = d.transaction(["readings", "tasks", "papers", "notes"], "readwrite");
   for (const r of backup.readings ?? []) tx.objectStore("readings").put(r);
   for (const t of backup.tasks ?? []) tx.objectStore("tasks").put(t);
   for (const p of backup.papers ?? []) tx.objectStore("papers").put(p);
+  for (const n of backup.notes ?? []) tx.objectStore("notes").put(n);
   await tx.done;
 }

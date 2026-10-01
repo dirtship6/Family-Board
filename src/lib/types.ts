@@ -28,6 +28,26 @@ export interface StudyBrief {
   likelyTested: string[];
 }
 
+/** A saved highlight in the degree-long notebook. */
+export interface Note {
+  id: string;
+  createdAt: number;
+  /** The saved text: a quote from a reading, or an AI answer. */
+  quote: string;
+  /** Your own thoughts on it. */
+  comment: string;
+  tags: string[];
+  course: string;
+  source: "reading" | "ai";
+  readingId?: string;
+  readingTitle?: string;
+  /** First and last sentence of the quote in the reading, for jumping back and widening the quote. */
+  sentenceStart?: number;
+  sentenceEnd?: number;
+  /** Chicago first-note citation captured when saved, so it survives the reading being deleted. */
+  citation?: string;
+}
+
 export type TaskKind = "reading" | "quiz" | "paper" | "exam" | "discussion" | "other";
 
 export interface Task {

@@ -15,6 +15,7 @@ A browser-based study companion for Air Command and Staff College. It's built to
 
 **2. Search, study, papers, and tasks**
 - **Search** across every reading at once, or filter to one course. Every word must appear in the same sentence; use "quotes" for exact phrases. Each hit shows its surrounding sentences, and you can jump to that spot to read or listen from there, or copy the quote with a footnote.
+- **Notes — a running notebook for the whole degree.** Tap **☆ Note** in the player (or press `n`) to save the sentence being read, even while you're on another tab. You can also select any text in a reading, or save a search hit or an AI answer. Each note keeps its course, source, and a Chicago citation. You can widen a quote by a sentence, add your own take and tags, jump back to the source, search and filter, and export everything to Markdown (opens in Word, Google Docs, OneNote, or Obsidian).
 - **Reading briefs:** BLUF, thesis, key arguments, key terms, connections, likely-tested points, and seminar questions.
 - **Ask the readings:** compare authors, explain concepts, or apply them to scenarios, with answers grounded in your library.
 - **Paper workspace:** decode the prompt and rubric, pressure-test your thesis, organize your ideas, find verbatim evidence in your readings, get instructor-style feedback on your draft, and check your citations. It also builds Chicago/AU-style footnotes and bibliographies from your library, and tracks word count against the target.
@@ -28,7 +29,7 @@ The study tools are designed to *prepare* you. The writing coach gives feedback 
 
 ## Data and privacy
 
-- Everything (readings, progress, papers, tasks) is stored locally in your browser (IndexedDB). Use **Settings → Export backup** to move between devices.
+- Everything (readings, progress, notes, papers, tasks) is stored locally in your browser (IndexedDB). Use **Settings → Export backup** to move between devices, and export a backup regularly: your notebook is meant to outlast the course.
 - Your API key is stored in this browser's localStorage, and requests go directly from your browser to `api.anthropic.com`.
 - When you use an AI tool, the text of the selected readings and your paper is sent to Anthropic. Only use these tools on material you're allowed to share outside government systems. Never use them on CUI or anything with distribution restrictions.
 
