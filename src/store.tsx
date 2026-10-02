@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import * as db from "./lib/db";
 import { Narrator, loadVoices, rankVoices } from "./lib/narrator";
 import { noteFromReading } from "./lib/notes";
-import { toSentences, type Sentence } from "./lib/text";
+import { listenWordCount, toSpokenSentences, type SpokenSentence } from "./lib/listening";
 import { DEFAULT_SETTINGS, type Note, type Reading, type Settings } from "./lib/types";
 
 const SETTINGS_KEY = "acsc-speedrun.settings";
@@ -15,7 +15,7 @@ function loadSettings(): Settings {
   }
 }
 
-export type View = "today" | "library" | "listen" | "search" | "notes" | "study" | "papers" | "tasks" | "settings";
+export type View = "today" | "library" | "listen" | "search" | "notes" | "study" | "papers" | "tasks" | "costs" | "help" | "settings";
 
 /** Readings in play order: by course, then the course's order field. */
 export function playOrder(readings: Reading[]): Reading[] {
@@ -36,7 +36,7 @@ interface Store {
   voices: SpeechSynthesisVoice[];
   // Player
   nowPlaying: Reading | null;
-  sentences: Sentence[];
+  sentences: SpokenSentence[];
   sentenceIndex: number;
   word: { s: number; start: number; len: number } | null;
   playing: boolean;
@@ -68,7 +68,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [readings, setReadings] = useState<Reading[]>([]);
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [nowPlaying, setNowPlaying] = useState<Reading | null>(null);
-  const [sentences, setSentences] = useState<Sentence[]>([]);
+  const [sentences, setSentences] = useState<SpokenSentence[]>([]);
   const [sentenceIndex, setSentenceIndex] = useState(0);
   const [word, setWord] = useState<Store["word"]>(null);
   const [playing, setPlaying] = useState(false);
@@ -147,7 +147,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const open = useCallback(
     (reading: Reading, play = false, startAt?: number) => {
-      const s = toSentences(reading.text);
+      const s = toSpokenSentences(reading.text, settingsRef.current.listeningCleanup);
       setNowPlaying(reading);
       nowPlayingRef.current = reading;
       setSentences(s);
@@ -159,7 +159,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   openRef.current = open;
 
   const reloadReadings = useCallback(async () => {
-    setReadings(await db.all("readings"));
+    const list = await db.all("readings");
+    setReadings(list);
+    // Readings imported before listening cleanup existed get their narrated-length estimate once.
+    const missing = list.filter((r) => r.listenWords === undefined);
+    if (missing.length) {
+      for (const r of missing) {
+        r.listenWords = listenWordCount(r.text);
+        await db.put("readings", r);
+      }
+      setReadings(await db.all("readings"));
+    }
   }, []);
 
   const reloadNotes = useCallback(async () => {
@@ -230,6 +240,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         return next;
       });
       if (patch.rate !== undefined) narrator.setRate(patch.rate);
+      if (patch.listeningCleanup !== undefined && nowPlayingRef.current) {
+        const wasPlaying = narrator.isPlaying;
+        const at = narrator.current;
+        settingsRef.current = { ...settingsRef.current, listeningCleanup: patch.listeningCleanup };
+        openRef.current(nowPlayingRef.current, wasPlaying, at);
+      }
       if (patch.voiceURI !== undefined) {
         narrator.setVoice(voices.find((x) => x.voiceURI === patch.voiceURI) ?? null);
       }

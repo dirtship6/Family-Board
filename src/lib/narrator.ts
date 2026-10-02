@@ -2,7 +2,8 @@
 // Speaking one sentence per utterance keeps highlighting exact, makes
 // seeking instant, and sidesteps Chrome's habit of silently stopping
 // long utterances after ~15 seconds.
-import type { Sentence } from "./text";
+import { logError } from "./errorlog";
+import type { SpokenSentence } from "./listening";
 
 export interface NarratorEvents {
   onSentence(index: number): void;
@@ -38,7 +39,7 @@ export function rankVoices(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice
 }
 
 export class Narrator {
-  private sentences: Sentence[] = [];
+  private sentences: SpokenSentence[] = [];
   private index = 0;
   private playing = false;
   /** Bumped on every (re)start so callbacks from cancelled utterances are ignored. */
@@ -49,7 +50,7 @@ export class Narrator {
 
   constructor(private events: NarratorEvents) {}
 
-  load(sentences: Sentence[], startAt = 0) {
+  load(sentences: SpokenSentence[], startAt = 0) {
     this.stop();
     this.sentences = sentences;
     this.index = Math.min(Math.max(startAt, 0), Math.max(sentences.length - 1, 0));
@@ -132,7 +133,9 @@ export class Narrator {
     synth.cancel();
     const sentence = this.sentences[this.index];
     if (!sentence) return;
-    const u = new SpeechSynthesisUtterance(sentence.text);
+    const u = new SpeechSynthesisUtterance(sentence.speak);
+    // Word highlighting indexes into what is spoken; only valid when nothing was removed.
+    const exact = sentence.speak === sentence.text;
     u.rate = this.rate;
     if (this.voice) {
       u.voice = this.voice;
@@ -140,26 +143,30 @@ export class Narrator {
     }
     const at = this.index;
     u.onboundary = (e) => {
-      if (gen === this.generation && e.name === "word") {
+      if (gen === this.generation && e.name === "word" && exact) {
         this.events.onWord?.(at, e.charIndex, e.charLength ?? 0);
       }
     };
     u.onend = () => {
       if (gen !== this.generation || !this.playing) return;
-      if (this.index >= this.sentences.length - 1) {
+      // Continuous play passes over reference lists and tables; tapping one still reads it.
+      let next = this.index + 1;
+      while (next < this.sentences.length && this.sentences[next].skip) next++;
+      if (next >= this.sentences.length) {
         this.playing = false;
         this.stopKeepAlive();
         this.events.onStateChange(false);
         this.events.onFinished();
         return;
       }
-      this.index++;
+      this.index = next;
       this.events.onSentence(this.index);
       this.speakCurrent();
     };
     u.onerror = (e) => {
       if (gen !== this.generation) return;
       if (e.error === "interrupted" || e.error === "canceled") return;
+      logError("Narration", `Speech engine error: ${e.error}`);
       this.pause();
     };
     synth.speak(u);

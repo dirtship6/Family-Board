@@ -20,6 +20,8 @@ export interface Reading {
   links?: ReadingLink[];
   /** Number of inline images stored for this reading. */
   imageCount?: number;
+  /** Words actually narrated after listening cleanup (for time estimates). */
+  listenWords?: number;
 }
 
 /** A picture from a lesson page, shown inline before paragraph `para` (stored separately from the reading). */
@@ -109,6 +111,12 @@ export interface Settings {
   /** yyyy-mm-dd you want to finish all readings by. */
   targetDate: string;
   theme: "terminal" | "daylight";
+  /** Skip reference lists, tables, citations, footnote numbers, and URLs while listening. */
+  listeningCleanup: boolean;
+  /** Monthly AI spend limit in dollars; 0 means no limit. */
+  monthlyBudget: number;
+  /** Refuse AI calls once the monthly limit is reached. */
+  enforceBudget: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -120,4 +128,7 @@ export const DEFAULT_SETTINGS: Settings = {
   fontSize: 18,
   targetDate: "",
   theme: "terminal",
+  listeningCleanup: true,
+  monthlyBudget: 0,
+  enforceBudget: false,
 };

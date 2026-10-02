@@ -16,6 +16,12 @@ A browser-based study companion for Air Command and Staff College. It's built to
   - Running headers, page numbers, copyright footers and JSTOR stamps are stripped from PDFs.
   - Lessons that downloaded empty (still locked) are flagged. Importing a newer download later adds only what's new.
 - Narration uses your device's built-in voices. Speed goes from 0.75× to 3.5×, and you can switch voices.
+- **Listening cleanup** (on by default, Settings) streamlines what's read aloud without changing what's on screen or searchable:
+  - Skips reference lists, bibliographies, and endnote sections, including notes printed before their heading.
+  - Skips tables and figure text that PDFs flatten into fragments, plus logo and symbol debris. Each skipped section is labeled in the text, and tapping a skipped sentence still reads it.
+  - Leaves out in-text citations like "(Barley, Meyer, and Gash, 1988)", footnote numbers stuck to words, and web addresses.
+  - On Lesson 1 of LDR-601S this removes about 10% of the narration, roughly 80 minutes at 1×.
+- Words that some PDFs damage by dropping letter pairs ("Te" for "The", "ofcer" for "officer") are repaired on import, using the rest of your library as a dictionary. It only touches documents that clearly show the damage.
 - The current sentence (and word, where the voice supports it) is highlighted and auto-scrolls into view. Click any sentence to jump there. Turn the text off for listening-only mode, e.g. while driving or working out.
 - A persistent player bar keeps narration going while you use other tabs. It has sentence and paragraph skip, and keyboard shortcuts: space to play/pause, ←/→ for sentences, ↑/↓ for paragraphs.
 - Your position is saved, and narration auto-continues to the next unfinished reading.
@@ -28,6 +34,8 @@ A browser-based study companion for Air Command and Staff College. It's built to
 - **Ask the readings:** ask a question in plain English about all your readings, one course, or the reading that's playing. It finds the most relevant passages, including ones that use different wording, and Claude gives a short answer: a 2–4 sentence bottom line plus a few supporting points. Each point cites its reading, and tapping the citation jumps to the exact sentence. Only the matching passages are sent to Claude, so each question is quick and cheap. You can save the answer, or any passage it used, to Notes.
 - **Paper workspace:** decode the prompt and rubric, pressure-test your thesis, organize your ideas, find verbatim evidence in your readings, get instructor-style feedback on your draft, and check your citations. It also builds Chicago/AU-style footnotes and bibliographies from your library, and tracks word count against the target.
 - **Tasks:** due dates with overdue/soon flags. You can bulk-paste your schedule (`2026-10-14 | Airpower | quiz | Lesson 3 quiz`).
+- **Costs:** every Claude call is recorded with its tokens and estimated cost. The page shows totals for this month, last month, and all time, a breakdown by feature, and recent calls, and you can export them as CSV. You can set a monthly limit that warns you, or pauses the AI tools, when reached. It also estimates what Azure or ElevenLabs narration would cost for your library (narration with built-in voices is free).
+- **Help:** a health check (speech engine and voices, storage space and protection, backup age, API connection test, network, readings with no text, listening cleanup), one-click fixes (reset narration, repair damaged text, recalculate listening times), a log of recent problems, a diagnostic report you can copy (no reading text, notes, or API key), and answers to common issues.
 
 The AI features use Claude (`claude-opus-5-5`) through your own Anthropic API key.
 

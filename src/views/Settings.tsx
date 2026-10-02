@@ -58,6 +58,11 @@ export function SettingsView() {
           <button onClick={preview}>Preview</button>
         </div>
         <label className="toggle">
+          <input type="checkbox" checked={settings.listeningCleanup} onChange={(e) => updateSettings({ listeningCleanup: e.target.checked })} />
+          Listening cleanup: skip reference lists, notes, and tables, and leave out citations, footnote numbers, and web
+          addresses while reading aloud (everything stays on screen and searchable)
+        </label>
+        <label className="toggle">
           <input type="checkbox" checked={settings.autoContinue} onChange={(e) => updateSettings({ autoContinue: e.target.checked })} />
           Auto-continue to the next unfinished reading
         </label>
@@ -96,6 +101,7 @@ export function SettingsView() {
               const a = document.createElement("a");
               a.href = URL.createObjectURL(blob);
               a.download = `acsc-speedrun-${new Date().toISOString().slice(0, 10)}.json`;
+              localStorage.setItem("acsc-speedrun.lastBackup", String(Date.now()));
               a.click();
               URL.revokeObjectURL(a.href);
             }}

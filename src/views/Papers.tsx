@@ -7,6 +7,7 @@ import { wordCount } from "../lib/text";
 import type { Paper } from "../lib/types";
 import { Markdown } from "./Markdown";
 import { ReadingPicker } from "./ReadingPicker";
+import { BudgetBanner } from "./Costs";
 
 function blankPaper(): Paper {
   return {
@@ -182,6 +183,7 @@ export function Papers() {
       <section>
         <button className="link" onClick={() => setActiveId(null)}>← All papers</button>
         <h1>{active.title}</h1>
+        <BudgetBanner />
         <PaperEditor paper={active} onPatch={(c) => patch(active.id, c)} />
       </section>
     );

@@ -3,7 +3,9 @@
 // straight from the browser to the Anthropic API.
 import Anthropic from "@anthropic-ai/sdk";
 import type { BetaContentBlockParam, BetaMessage } from "@anthropic-ai/sdk/resources/beta/messages/messages";
+import { logError } from "./errorlog";
 import type { Passage } from "./retrieve";
+import { assertWithinBudget, recordUsage } from "./usage";
 import type { Paper, Reading, StudyBrief } from "./types";
 
 const MODEL = "claude-opus-5-5";
@@ -37,6 +39,12 @@ function readingBlocks(readings: Reading[]): BetaContentBlockParam[] {
   return [{ type: "text", text: `<readings>\n${body}\n</readings>`, cache_control: { type: "ephemeral" } }];
 }
 
+/** Book the call's cost, then pull out its text (or a clear reason there isn't any). */
+async function finish(msg: BetaMessage, feature: string): Promise<string> {
+  await recordUsage(feature, msg.model, msg.usage);
+  return textOf(msg);
+}
+
 function textOf(msg: BetaMessage): string {
   if (msg.stop_reason === "refusal") throw new Error("The model declined this request.");
   if (msg.stop_reason === "max_tokens") throw new Error("The response was cut off. Try fewer readings or a narrower request.");
@@ -46,9 +54,17 @@ function textOf(msg: BetaMessage): string {
     .join("");
 }
 
-function describeError(e: unknown): Error {
+function describeError(e: unknown, feature: string): Error {
+  const err = explainError(e);
+  logError(`AI · ${feature}`, err);
+  return err;
+}
+
+function explainError(e: unknown): Error {
   if (e instanceof Anthropic.AuthenticationError) return new Error("Your API key was rejected. Check it in Settings.");
   if (e instanceof Anthropic.RateLimitError) return new Error("Rate limited by the API. Wait a minute and try again.");
+  if (e instanceof Anthropic.PermissionDeniedError) return new Error("Your API key isn't allowed to use this model. Check your Anthropic Console plan and limits.");
+  if (e instanceof Anthropic.InternalServerError) return new Error("Anthropic's service had a temporary problem (it may be overloaded). Try again in a minute.");
   if (e instanceof Anthropic.BadRequestError) return new Error(`Request rejected: ${e.message}`);
   if (e instanceof Anthropic.APIConnectionError) return new Error("Couldn't reach the Anthropic API. Check your connection.");
   return e instanceof Error ? e : new Error(String(e));
@@ -56,6 +72,7 @@ function describeError(e: unknown): Error {
 
 async function askJSON<T>(opts: {
   apiKey: string;
+  feature: string;
   readings: Reading[];
   instruction: string;
   schema: Record<string, unknown>;
@@ -63,6 +80,7 @@ async function askJSON<T>(opts: {
   system?: string;
 }): Promise<T> {
   try {
+    await assertWithinBudget();
     const stream = getClient(opts.apiKey).beta.messages.stream({
       model: MODEL,
       max_tokens: 32000,
@@ -73,15 +91,16 @@ async function askJSON<T>(opts: {
       system: opts.system ?? COACH_SYSTEM,
       messages: [{ role: "user", content: [...readingBlocks(opts.readings), { type: "text", text: opts.instruction }] }],
     });
-    return JSON.parse(textOf(await stream.finalMessage())) as T;
+    return JSON.parse(await finish(await stream.finalMessage(), opts.feature)) as T;
   } catch (e) {
-    throw describeError(e);
+    throw describeError(e, opts.feature);
   }
 }
 
 /** Streams plain-text answers so long feedback shows up as it is written. */
 export async function askText(opts: {
   apiKey: string;
+  feature: string;
   readings: Reading[];
   instruction: string;
   onText: (soFar: string) => void;
@@ -89,6 +108,7 @@ export async function askText(opts: {
   system?: string;
 }): Promise<string> {
   try {
+    await assertWithinBudget();
     const stream = getClient(opts.apiKey).beta.messages.stream({
       model: MODEL,
       max_tokens: 32000,
@@ -104,9 +124,9 @@ export async function askText(opts: {
       soFar += delta;
       opts.onText(soFar);
     });
-    return textOf(await stream.finalMessage());
+    return await finish(await stream.finalMessage(), opts.feature);
   } catch (e) {
-    throw describeError(e);
+    throw describeError(e, opts.feature);
   }
 }
 
@@ -115,6 +135,7 @@ const strArray = { type: "array", items: { type: "string" } };
 export function generateBrief(apiKey: string, reading: Reading): Promise<StudyBrief> {
   return askJSON<StudyBrief>({
     apiKey,
+    feature: "Reading brief",
     readings: [reading],
     effort: "medium",
     instruction: `Build a study brief for the reading "${reading.title}" that lets me walk into seminar ready to discuss it.
@@ -257,13 +278,14 @@ export function runPaperAction(
   onText: (s: string) => void,
 ): Promise<string> {
   const a = PAPER_ACTIONS[action];
-  return askText({ apiKey, readings: sources, instruction: a.build(paper), onText, effort: a.effort, system: PAPER_SYSTEM });
+  return askText({ apiKey, feature: `Paper: ${a.label}`, readings: sources, instruction: a.build(paper), onText, effort: a.effort, system: PAPER_SYSTEM });
 }
 
 /** Turns a question into extra search terms (synonyms, doctrine terms, names) for passage retrieval. */
 export async function expandQuery(apiKey: string, question: string): Promise<string[]> {
   const out = await askJSON<{ terms: string[] }>({
     apiKey,
+    feature: "Ask: find terms",
     readings: [],
     effort: "low",
     instruction: `A student is searching their Air Command and Staff College readings to answer this question:
@@ -292,6 +314,7 @@ export function answerFromPassages(apiKey: string, question: string, passages: P
     .join("\n");
   return askJSON<ShortAnswer>({
     apiKey,
+    feature: "Ask: answer",
     readings: [],
     effort: "low",
     instruction: `<passages>
@@ -324,4 +347,23 @@ Never add facts that aren't in the passages.`,
       },
     },
   });
+}
+
+/** Tiny round trip to confirm the key, network, and model all work. Costs a fraction of a cent. */
+export async function testConnection(apiKey: string): Promise<{ ms: number; model: string; cost: number }> {
+  const t = performance.now();
+  try {
+    const msg = await getClient(apiKey).beta.messages.create({
+      model: MODEL,
+      max_tokens: 200,
+      betas: BETAS,
+      fallbacks: "default",
+      output_config: { effort: "low" },
+      messages: [{ role: "user", content: "Reply with the single word: ready" }],
+    });
+    const rec = await recordUsage("Connection test", msg.model, msg.usage);
+    return { ms: Math.round(performance.now() - t), model: msg.model, cost: rec.cost };
+  } catch (e) {
+    throw describeError(e, "Connection test");
+  }
 }

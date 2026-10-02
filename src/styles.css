@@ -412,3 +412,41 @@ mark.word, .hit-text mark { background: var(--word); }
 }
 .lightbox img { max-width: 100%; max-height: 85vh; background: #fff; }
 .lightbox-caption { color: #e3e8df; font-family: var(--font-hud); margin-top: 10px; text-align: center; }
+
+/* Listening cleanup */
+.sentence.skipped { color: var(--muted); opacity: 0.7; }
+.sentence.skipped.active { opacity: 1; color: var(--text); }
+.skip-label {
+  font-family: var(--font-hud); font-size: 0.75rem; letter-spacing: 0.05em; text-transform: uppercase;
+  color: var(--amber); border-top: 1px dashed var(--border); padding-top: 8px; margin: 18px 0 4px;
+}
+label.toggle { display: flex; align-items: flex-start; gap: 8px; margin: 8px 0; }
+label.toggle input { flex: 0 0 auto; margin-top: 3px; }
+
+/* Costs */
+table.data { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+table.data th { text-align: left; font-family: var(--font-hud); font-weight: 400; color: var(--muted); text-transform: uppercase; font-size: 0.72rem; letter-spacing: 0.06em; border-bottom: 1px solid var(--border); padding: 6px 8px 6px 0; }
+table.data td { padding: 6px 8px 6px 0; border-bottom: 1px dashed var(--border); vertical-align: top; }
+table.data td:last-child, table.data th:last-child { text-align: right; padding-right: 0; font-family: var(--font-hud); }
+input.rate { width: 80px; padding: 2px 6px; display: inline-block; }
+.meter.big { height: 12px; margin: 10px 0 4px; }
+.meter.near > div { background: repeating-linear-gradient(90deg, var(--amber) 0 6px, transparent 6px 8px); box-shadow: none; }
+.meter.over > div { background: var(--bad); box-shadow: none; }
+@media (max-width: 760px) { table.data { font-size: 0.8rem; } }
+
+/* Help */
+.checks { list-style: none; padding: 0; margin: 0; }
+.check { display: flex; gap: 12px; align-items: flex-start; padding: 10px 0; border-bottom: 1px dashed var(--border); }
+.check:last-child { border-bottom: 0; }
+.check-icon { font-size: 0.9rem; width: 16px; text-align: center; margin-top: 2px; }
+.check.ok .check-icon { color: var(--ok); text-shadow: var(--glow); }
+.check.warn .check-icon { color: var(--amber); }
+.check.bad .check-icon { color: var(--bad); }
+.check.info .check-icon { color: var(--muted); }
+.tool-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.tool { border: 1px solid var(--border); border-radius: 4px; padding: 10px 12px; background: var(--bg-deep); display: flex; flex-direction: column; align-items: flex-start; }
+.tool p { flex: 1; margin: 4px 0 8px; }
+.faq details { border-bottom: 1px dashed var(--border); padding: 8px 0; margin: 0; }
+.faq summary { color: var(--text); }
+.faq p { margin: 8px 0 4px 18px; }
+.nowrap { white-space: nowrap; }

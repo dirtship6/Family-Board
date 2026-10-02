@@ -1,5 +1,6 @@
 import { openDB, type DBSchema, type IDBPDatabase } from "idb";
 import type { Note, Paper, Reading, ReadingImage, Task } from "./types";
+import type { UsageRecord } from "./usage";
 
 interface StudyDB extends DBSchema {
   readings: { key: string; value: Reading };
@@ -7,15 +8,16 @@ interface StudyDB extends DBSchema {
   papers: { key: string; value: Paper };
   notes: { key: string; value: Note };
   images: { key: string; value: ReadingImage };
+  usage: { key: string; value: UsageRecord };
 }
 
-export type StoreName = "readings" | "tasks" | "papers" | "notes";
+export type StoreName = "readings" | "tasks" | "papers" | "notes" | "usage";
 type ValueOf<S extends StoreName> = StudyDB[S]["value"];
 
 let dbPromise: Promise<IDBPDatabase<StudyDB>> | null = null;
 
 function db() {
-  dbPromise ??= openDB<StudyDB>("acsc-speedrun", 3, {
+  dbPromise ??= openDB<StudyDB>("acsc-speedrun", 4, {
     upgrade(d, oldVersion) {
       if (oldVersion < 1) {
         d.createObjectStore("readings", { keyPath: "id" });
@@ -24,6 +26,7 @@ function db() {
       }
       if (oldVersion < 2) d.createObjectStore("notes", { keyPath: "id" });
       if (oldVersion < 3) d.createObjectStore("images", { keyPath: "id" });
+      if (oldVersion < 4) d.createObjectStore("usage", { keyPath: "id" });
     },
   });
   // Ask the browser not to evict this data under storage pressure: the notebook is meant to last the whole degree.
@@ -71,6 +74,7 @@ export interface Backup {
   tasks: Task[];
   papers: Paper[];
   notes?: Note[];
+  usage?: UsageRecord[];
   /** Images as data URLs (Blobs don't survive JSON). */
   images?: (Omit<ReadingImage, "data"> & { dataUrl: string })[];
 }
@@ -92,6 +96,7 @@ export async function exportAll(): Promise<Backup> {
     tasks: await all("tasks"),
     papers: await all("papers"),
     notes: await all("notes"),
+    usage: await all("usage"),
     images: await Promise.all(
       (await (await db()).getAll("images")).map(async ({ data, ...rest }) => ({ ...rest, dataUrl: await blobToDataUrl(data) })),
     ),
@@ -104,11 +109,16 @@ export async function importAll(backup: Backup): Promise<void> {
   const images = await Promise.all(
     (backup.images ?? []).map(async ({ dataUrl, ...rest }) => ({ ...rest, data: await (await fetch(dataUrl)).blob() })),
   );
-  const tx = d.transaction(["readings", "tasks", "papers", "notes", "images"], "readwrite");
+  const tx = d.transaction(["readings", "tasks", "papers", "notes", "images", "usage"], "readwrite");
   for (const r of backup.readings ?? []) tx.objectStore("readings").put(r);
   for (const t of backup.tasks ?? []) tx.objectStore("tasks").put(t);
   for (const p of backup.papers ?? []) tx.objectStore("papers").put(p);
   for (const n of backup.notes ?? []) tx.objectStore("notes").put(n);
   for (const img of images) tx.objectStore("images").put(img);
+  for (const u of backup.usage ?? []) tx.objectStore("usage").put(u);
   await tx.done;
+}
+
+export async function imageCount(): Promise<number> {
+  return (await db()).count("images");
 }

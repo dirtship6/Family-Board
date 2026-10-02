@@ -7,7 +7,7 @@ export function PlayerBar() {
   const { nowPlaying, sentences, sentenceIndex, playing, narrator, settings, updateSettings, go, view, captureNote } = useStore();
   if (!nowPlaying) return null;
   const pct = sentences.length ? ((sentenceIndex + 1) / sentences.length) * 100 : 0;
-  const remainingWords = sentences.slice(sentenceIndex).reduce((n, s) => n + wordCount(s.text), 0);
+  const remainingWords = sentences.slice(sentenceIndex).reduce((n, s) => n + (s.skip ? 0 : wordCount(s.speak)), 0);
 
   return (
     <div className="player" role="region" aria-label="Narration player">

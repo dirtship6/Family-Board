@@ -4,6 +4,8 @@ import { ACCEPTED_FILES, importAny, importUrl, type ImportedDoc } from "../lib/i
 import * as db from "../lib/db";
 import { newId } from "../lib/db";
 import { cleanText, formatDuration, listenMinutes, remainingWords, wordCount } from "../lib/text";
+import { listenWordCount, repairLigatures } from "../lib/listening";
+import { logError } from "../lib/errorlog";
 import type { Reading } from "../lib/types";
 
 function ReadingEditor({ reading, onDone }: { reading: Reading; onDone(): void }) {
@@ -31,7 +33,7 @@ function ReadingEditor({ reading, onDone }: { reading: Reading; onDone(): void }
           onClick={async () => {
             const text = cleanText(r.text);
             const changed = text !== reading.text;
-            await saveReading({ ...r, text, wordCount: wordCount(text), position: changed ? 0 : r.position });
+            await saveReading({ ...r, text, wordCount: wordCount(text), listenWords: listenWordCount(text), position: changed ? 0 : r.position });
             onDone();
           }}
         >
@@ -50,6 +52,8 @@ interface ImportSummary {
   skipped: number;
   tasks: number;
   papers: number;
+  repaired: number;
+  repairedDocs: number;
   notices: string[];
 }
 
@@ -89,6 +93,7 @@ export function Library() {
       order: nextOrder(c),
       text,
       wordCount: wordCount(text),
+      listenWords: listenWordCount(text),
       position: 0,
       completed: false,
       createdAt: Date.now(),
@@ -103,7 +108,7 @@ export function Library() {
     setError("");
     setSummary(null);
     const problems: string[] = [];
-    const sum: ImportSummary = { courses: [], readings: 0, pages: 0, skipped: 0, tasks: 0, papers: 0, notices: [] };
+    const sum: ImportSummary = { courses: [], readings: 0, pages: 0, skipped: 0, tasks: 0, papers: 0, repaired: 0, repairedDocs: 0, notices: [] };
     // `readings` won't refresh mid-loop, so track what exists and the play order locally.
     const have = new Set(readings.map((r) => `${r.course}\u0000${r.title}`.toLowerCase()));
     const orders = new Map<string, number>();
@@ -120,6 +125,16 @@ export function Library() {
       try {
         const result = await importAny(f, (m) => setBusy(`${f.name}: ${m}`));
         const docs = result.docs.filter((d) => d.text.trim());
+        // Repair words some PDFs lose to dropped ligatures ("Te" → "The"), using everything else as a dictionary.
+        for (const doc of docs) {
+          const others = [...docs.filter((d) => d !== doc).map((d) => d.text), ...readings.map((r) => r.text)];
+          const repaired = repairLigatures(doc.text, others);
+          if (repaired.fixes) {
+            doc.text = repaired.text;
+            sum.repaired += repaired.fixes;
+            sum.repairedDocs++;
+          }
+        }
         if (!docs.length && !result.tasks?.length) throw new Error("no text found (scanned PDFs need OCR first)");
         // A course package names its own course; loose files go to the course typed above.
         const c = result.course || course.trim() || "Unsorted";
@@ -154,6 +169,7 @@ export function Library() {
         sum.notices.push(...(result.notices ?? []));
       } catch (e) {
         problems.push(`${f.name}: ${e instanceof Error ? e.message : e}`);
+        logError("Import", `${f.name}: ${e instanceof Error ? e.message : e}`);
       }
     }
     setBusy("");
@@ -251,6 +267,8 @@ export function Library() {
               summary.tasks && `${summary.tasks} task${summary.tasks === 1 ? "" : "s"}`,
               summary.papers && `${summary.papers} assignment${summary.papers === 1 ? "" : "s"} set up in Papers`,
               summary.skipped && `${summary.skipped} already in your library (skipped)`,
+              summary.repaired &&
+                `repaired ${summary.repaired} damaged word${summary.repaired === 1 ? "" : "s"} in ${summary.repairedDocs} PDF${summary.repairedDocs === 1 ? "" : "s"}`,
             ]
               .filter(Boolean)
               .join(" · ") || "nothing new"}
@@ -295,7 +313,7 @@ export function Library() {
                       </div>
                       <div className="muted small">
                         {r.author && `${r.author} · `}
-                        {r.wordCount.toLocaleString()} words · {formatDuration(listenMinutes(r.wordCount, settings.rate))}
+                        {r.wordCount.toLocaleString()} words · {formatDuration(listenMinutes(settings.listeningCleanup ? r.listenWords ?? r.wordCount : r.wordCount, settings.rate))}
                         {r.imageCount ? ` · ${r.imageCount} image${r.imageCount === 1 ? "" : "s"}` : ""}
                         {r.links?.length ? ` · ${r.links.length} video/link${r.links.length === 1 ? "" : "s"}` : ""}
                         {r.brief && " · brief ready"}

@@ -105,9 +105,9 @@ export function formatDuration(minutes: number): string {
 }
 
 /** Rough words left to hear, from the saved sentence position (~18 words per sentence). */
-export function remainingWords(r: { wordCount: number; position: number; completed: boolean }): number {
+export function remainingWords(r: { wordCount: number; listenWords?: number; position: number; completed: boolean }): number {
   if (r.completed) return 0;
-  return Math.max(0, r.wordCount - r.position * 18);
+  return Math.max(0, (r.listenWords ?? r.wordCount) - r.position * 18);
 }
 
 /**

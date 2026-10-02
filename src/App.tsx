@@ -10,6 +10,8 @@ import { Study } from "./views/Study";
 import { Papers } from "./views/Papers";
 import { Tasks } from "./views/Tasks";
 import { SettingsView } from "./views/Settings";
+import { Costs } from "./views/Costs";
+import { Help } from "./views/Help";
 
 const TABS: { id: View; label: string }[] = [
   { id: "today", label: "Today" },
@@ -20,6 +22,8 @@ const TABS: { id: View; label: string }[] = [
   { id: "study", label: "Study" },
   { id: "papers", label: "Papers" },
   { id: "tasks", label: "Tasks" },
+  { id: "costs", label: "Costs" },
+  { id: "help", label: "Help" },
   { id: "settings", label: "Settings" },
 ];
 
@@ -65,6 +69,8 @@ function Shell() {
         {view === "study" && <Study />}
         {view === "papers" && <Papers />}
         {view === "tasks" && <Tasks />}
+        {view === "costs" && <Costs />}
+        {view === "help" && <Help />}
         {view === "settings" && <SettingsView />}
       </main>
       <PlayerBar />

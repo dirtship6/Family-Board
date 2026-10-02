@@ -4,6 +4,7 @@ import { answerFromPassages, expandQuery, generateBrief, type ShortAnswer } from
 import { noteFromAI, noteFromReading } from "../lib/notes";
 import { retrieve, type Passage } from "../lib/retrieve";
 import { buildIndex } from "../lib/search";
+import { BudgetBanner } from "./Costs";
 import type { Reading } from "../lib/types";
 
 type Tab = "brief" | "ask";
@@ -278,6 +279,7 @@ export function Study() {
           The study tools use Claude. <button className="link" onClick={() => go("settings")}>Add your API key in Settings</button>.
         </p>
       )}
+      <BudgetBanner />
       <div className="subtabs">
         {(
           [
