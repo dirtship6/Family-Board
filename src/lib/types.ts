@@ -1,3 +1,5 @@
+import type { PageNumber } from "./pages";
+
 export interface Reading {
   id: string;
   title: string;
@@ -20,8 +22,15 @@ export interface Reading {
   links?: ReadingLink[];
   /** Number of inline images stored for this reading. */
   imageCount?: number;
-  /** Words actually narrated after listening cleanup (for time estimates). */
+  /** Words actually narrated after listening cleanup and assigned pages (for time estimates). */
   listenWords?: number;
+  /** PDFs: paragraph index where each page starts, and each page's printed number. */
+  pageStarts?: number[];
+  pageNumbers?: PageNumber[];
+  /** The lesson's instruction for this reading, e.g. "Read pages 334-335 and 364-365". */
+  assignment?: string;
+  /** Read the whole document even though only some pages are assigned. */
+  readAll?: boolean;
 }
 
 /** A picture from a lesson page, shown inline before paragraph `para` (stored separately from the reading). */
@@ -113,6 +122,8 @@ export interface Settings {
   theme: "terminal" | "daylight";
   /** Skip reference lists, tables, citations, footnote numbers, and URLs while listening. */
   listeningCleanup: boolean;
+  /** Only narrate the pages the lesson assigns, when they can be matched. */
+  assignedOnly: boolean;
   /** Monthly AI spend limit in dollars; 0 means no limit. */
   monthlyBudget: number;
   /** Refuse AI calls once the monthly limit is reached. */
@@ -129,6 +140,7 @@ export const DEFAULT_SETTINGS: Settings = {
   targetDate: "",
   theme: "terminal",
   listeningCleanup: true,
+  assignedOnly: true,
   monthlyBudget: 0,
   enforceBudget: false,
 };

@@ -9,7 +9,7 @@ import { logError } from "../lib/errorlog";
 import type { Reading } from "../lib/types";
 
 function ReadingEditor({ reading, onDone }: { reading: Reading; onDone(): void }) {
-  const { saveReading } = useStore();
+  const { saveReading, settings } = useStore();
   const [r, setR] = useState(reading);
   const set = (patch: Partial<Reading>) => setR((x) => ({ ...x, ...patch }));
   return (
@@ -22,6 +22,10 @@ function ReadingEditor({ reading, onDone }: { reading: Reading; onDone(): void }
         <label>Publisher / journal<input value={r.publisher ?? ""} onChange={(e) => set({ publisher: e.target.value })} /></label>
         <label>Year<input value={r.year ?? ""} onChange={(e) => set({ year: e.target.value })} /></label>
         <label className="span2">URL<input value={r.url ?? ""} onChange={(e) => set({ url: e.target.value })} /></label>
+        <label className="span2">
+          Assigned pages <span className="muted small">e.g. “12-30, 41-44” (printed page numbers; leave blank to read it all)</span>
+          <input value={r.assignment ?? ""} onChange={(e) => set({ assignment: e.target.value })} placeholder="All pages" />
+        </label>
       </div>
       <label>
         Text <span className="muted small">(clean up headers, footers, or footnotes you don’t want read aloud)</span>
@@ -33,7 +37,12 @@ function ReadingEditor({ reading, onDone }: { reading: Reading; onDone(): void }
           onClick={async () => {
             const text = cleanText(r.text);
             const changed = text !== reading.text;
-            await saveReading({ ...r, text, wordCount: wordCount(text), listenWords: listenWordCount(text), position: changed ? 0 : r.position });
+            // Editing the text shifts paragraphs, so the PDF page map no longer lines up.
+            const pages = changed ? { pageStarts: undefined, pageNumbers: undefined } : {};
+            const typed = r.assignment?.trim();
+            const assignment = typed ? (/\b(read|pages?|pp?\.)\b/i.test(typed) ? typed : `Read pages ${typed}`) : undefined;
+            const next = { ...r, ...pages, text, assignment };
+            await saveReading({ ...next, wordCount: wordCount(text), listenWords: listenWordCount(next, settings), position: changed ? 0 : r.position });
             onDone();
           }}
         >
@@ -54,6 +63,7 @@ interface ImportSummary {
   papers: number;
   repaired: number;
   repairedDocs: number;
+  updated: number;
   notices: string[];
 }
 
@@ -93,13 +103,13 @@ export function Library() {
       order: nextOrder(c),
       text,
       wordCount: wordCount(text),
-      listenWords: listenWordCount(text),
       position: 0,
       completed: false,
       createdAt: Date.now(),
       imageCount: images?.length || undefined,
       ...extra,
     };
+    reading.listenWords = listenWordCount(reading, settings);
     await saveReading(reading);
   };
 
@@ -108,7 +118,7 @@ export function Library() {
     setError("");
     setSummary(null);
     const problems: string[] = [];
-    const sum: ImportSummary = { courses: [], readings: 0, pages: 0, skipped: 0, tasks: 0, papers: 0, repaired: 0, repairedDocs: 0, notices: [] };
+    const sum: ImportSummary = { courses: [], readings: 0, pages: 0, skipped: 0, tasks: 0, papers: 0, repaired: 0, repairedDocs: 0, updated: 0, notices: [] };
     // `readings` won't refresh mid-loop, so track what exists and the play order locally.
     const have = new Set(readings.map((r) => `${r.course}\u0000${r.title}`.toLowerCase()));
     const orders = new Map<string, number>();
@@ -142,11 +152,32 @@ export function Library() {
         for (const doc of docs) {
           const key = `${c}\u0000${doc.title}`.toLowerCase();
           if (have.has(key)) {
-            sum.skipped++;
+            // Readings imported by an older version lack page info; add it if the text still lines up.
+            const existing = readings.find((r) => `${r.course}\u0000${r.title}`.toLowerCase() === key);
+            if (existing && !existing.pageStarts && doc.pageStarts && existing.text === doc.text) {
+              const upgraded = { ...existing, pageStarts: doc.pageStarts, pageNumbers: doc.pageNumbers, assignment: existing.assignment ?? doc.assignment };
+              upgraded.listenWords = listenWordCount(upgraded, settings);
+              await saveReading(upgraded);
+              sum.updated++;
+            } else sum.skipped++;
             continue;
           }
           have.add(key);
-          await add(doc.title, doc.text, { course: c, order: orderFor(c), author: doc.author, year: doc.year, links: doc.links }, doc.images);
+          await add(
+            doc.title,
+            doc.text,
+            {
+              course: c,
+              order: orderFor(c),
+              author: doc.author,
+              year: doc.year,
+              links: doc.links,
+              pageStarts: doc.pageStarts,
+              pageNumbers: doc.pageNumbers,
+              assignment: doc.assignment,
+            },
+            doc.images,
+          );
           sum[doc.kind === "page" ? "pages" : "readings"]++;
         }
         for (const t of result.tasks ?? []) {
@@ -267,6 +298,7 @@ export function Library() {
               summary.tasks && `${summary.tasks} task${summary.tasks === 1 ? "" : "s"}`,
               summary.papers && `${summary.papers} assignment${summary.papers === 1 ? "" : "s"} set up in Papers`,
               summary.skipped && `${summary.skipped} already in your library (skipped)`,
+              summary.updated && `${summary.updated} existing reading${summary.updated === 1 ? "" : "s"} updated with page info`,
               summary.repaired &&
                 `repaired ${summary.repaired} damaged word${summary.repaired === 1 ? "" : "s"} in ${summary.repairedDocs} PDF${summary.repairedDocs === 1 ? "" : "s"}`,
             ]
@@ -314,6 +346,7 @@ export function Library() {
                       <div className="muted small">
                         {r.author && `${r.author} · `}
                         {r.wordCount.toLocaleString()} words · {formatDuration(listenMinutes(settings.listeningCleanup ? r.listenWords ?? r.wordCount : r.wordCount, settings.rate))}
+                        {r.assignment ? ` · ${r.assignment.replace(/^read\s+/i, "")}` : ""}
                         {r.imageCount ? ` · ${r.imageCount} image${r.imageCount === 1 ? "" : "s"}` : ""}
                         {r.links?.length ? ` · ${r.links.length} video/link${r.links.length === 1 ? "" : "s"}` : ""}
                         {r.brief && " · brief ready"}

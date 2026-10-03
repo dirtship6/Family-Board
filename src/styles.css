@@ -450,3 +450,7 @@ input.rate { width: 80px; padding: 2px 6px; display: inline-block; }
 .faq summary { color: var(--text); }
 .faq p { margin: 8px 0 4px 18px; }
 .nowrap { white-space: nowrap; }
+
+/* Assigned pages */
+.assignment-bar { max-width: 72ch; margin: 10px auto 0; font-size: 0.88rem; display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; }
+.assignment-tag { font-family: var(--font-hud); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--accent-text); background: var(--accent); padding: 1px 6px; border-radius: 2px; }

@@ -1,11 +1,13 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import * as db from "../lib/db";
-import type { SkipKind } from "../lib/listening";
+import { listenWordCount, type SkipKind } from "../lib/listening";
+import { assignmentStatus } from "../lib/pages";
+import type { Reading } from "../lib/types";
 import { playOrder, useStore } from "../store";
 import { formatDuration, listenMinutes } from "../lib/text";
 
 export function Listen() {
-  const { nowPlaying, sentences, sentenceIndex, word, narrator, settings, updateSettings, readings, open, go, captureNote } = useStore();
+  const { nowPlaying, sentences, sentenceIndex, word, narrator, settings, updateSettings, readings, open, go, captureNote, saveReading } = useStore();
   const articleRef = useRef<HTMLElement>(null);
   const [selection, setSelection] = useState<{ start: number; end: number; quote: string; x: number; y: number } | null>(null);
 
@@ -212,6 +214,16 @@ export function Listen() {
           <button onClick={() => go("study")}>Brief &amp; Q&amp;A →</button>
         </div>
       </div>
+      <AssignmentBar
+        reading={nowPlaying}
+        enabled={settings.assignedOnly}
+        onToggle={async (readAll) => {
+          const updated = { ...nowPlaying, readAll };
+          updated.listenWords = listenWordCount(updated, settings);
+          await saveReading(updated);
+          open(updated, narrator.isPlaying, narrator.current);
+        }}
+      />
       {nowPlaying.links?.length ? (
         <div className="page-links">
           <span className="muted small">On this page, outside the app:</span>
@@ -230,7 +242,7 @@ export function Listen() {
               {images.filter((img) => img.para === p).map((img) => figure(img, items[0]?.text))}
               {skip && paragraphs[i - 1]?.skip !== skip && (
                 <div className="skip-label">
-                  {skip === "references" ? "References / notes" : "Table or figure text"} · skipped while listening
+                  {skip === "references" ? "References / notes" : skip === "unassigned" ? "Pages not assigned in the lesson" : "Table or figure text"} · skipped while listening
                 </div>
               )}
               <p>{items.map((s) => renderSentence(s.index, s.text, s.skip))}</p>
@@ -271,5 +283,29 @@ export function Listen() {
         </button>
       )}
     </section>
+  );
+}
+
+/** What the lesson assigns from this reading, and a switch to hear the whole thing instead. */
+function AssignmentBar({ reading, enabled, onToggle }: { reading: Reading; enabled: boolean; onToggle(readAll: boolean): void }) {
+  const status = assignmentStatus(reading);
+  if (!status) return null;
+  let detail: string;
+  if (status.kind === "partial") {
+    detail = reading.readAll || !enabled
+      ? `Reading the whole document (${status.pagesTotal} pages).`
+      : `Reading only the assigned pages: ${status.pagesRead} of ${status.pagesTotal} PDF pages.`;
+  } else if (status.reason === "whole") detail = "That's the whole document.";
+  else if (status.reason === "not-pages") detail = "Not a page range, so the whole document is read.";
+  else detail = "This PDF's page numbers couldn't be matched, so the whole document is read.";
+  return (
+    <div className="assignment-bar">
+      <span className="assignment-tag">Assigned</span> {status.instruction} · <span className="muted">{detail}</span>
+      {status.kind === "partial" && enabled && (
+        <button className="link small" onClick={() => onToggle(!reading.readAll)}>
+          {reading.readAll ? "Only assigned pages" : "Read the whole document"}
+        </button>
+      )}
+    </div>
   );
 }

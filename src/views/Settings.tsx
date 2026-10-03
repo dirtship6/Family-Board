@@ -63,6 +63,11 @@ export function SettingsView() {
           addresses while reading aloud (everything stays on screen and searchable)
         </label>
         <label className="toggle">
+          <input type="checkbox" checked={settings.assignedOnly} onChange={(e) => updateSettings({ assignedOnly: e.target.checked })} />
+          Only read the assigned pages when a lesson says, for example, “Read pages 334-335 and 364-365” (the rest stays on
+          screen and searchable)
+        </label>
+        <label className="toggle">
           <input type="checkbox" checked={settings.autoContinue} onChange={(e) => updateSettings({ autoContinue: e.target.checked })} />
           Auto-continue to the next unfinished reading
         </label>

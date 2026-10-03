@@ -1,9 +1,11 @@
 // "Listening cleanup": decides what narration skips and how each sentence is spoken.
 // The stored text never changes here, so everything stays visible and searchable;
 // only what is read aloud is streamlined.
+import { assignmentStatus } from "./pages";
 import { cleanText, toSentences, type Sentence } from "./text";
+import type { Reading } from "./types";
 
-export type SkipKind = "references" | "table";
+export type SkipKind = "references" | "table" | "unassigned";
 
 export interface SpokenSentence extends Sentence {
   /** Text sent to the voice; differs from `text` when citations etc. were removed. */
@@ -152,20 +154,40 @@ export function classifyParagraphs(text: string): (SkipKind | null)[] {
   return out;
 }
 
-/** Words narration will actually speak, for time estimates. */
-export function listenWordCount(text: string): number {
-  return toSpokenSentences(text, true).reduce((n, s) => n + (s.skip ? 0 : s.speak.split(/\s+/).filter(Boolean).length), 0);
+export interface NarrationOptions {
+  cleanup: boolean;
+  /** Paragraphs on pages the lesson doesn't assign. */
+  unassigned?: Set<number>;
 }
 
 /** Sentences ready for narration: what to say, and what to pass over. */
-export function toSpokenSentences(text: string, cleanup: boolean): SpokenSentence[] {
+export function toSpokenSentences(text: string, opts: NarrationOptions): SpokenSentence[] {
   const sentences = toSentences(text);
-  if (!cleanup) return sentences.map((s) => ({ ...s, speak: s.text }));
-  const kinds = classifyParagraphs(text);
+  const kinds = opts.cleanup ? classifyParagraphs(text) : [];
   return sentences.map((s) => {
-    const skip = kinds[s.p] ?? undefined;
-    return { ...s, speak: skip ? s.text : speakable(s.text), skip };
+    const skip: SkipKind | undefined = opts.unassigned?.has(s.p) ? "unassigned" : kinds[s.p] ?? undefined;
+    return { ...s, speak: skip || !opts.cleanup ? s.text : speakable(s.text), skip };
   });
+}
+
+/** Narration plan for a reading under the current settings. */
+export function narrationFor(
+  r: Pick<Reading, "text" | "assignment" | "pageStarts" | "pageNumbers" | "readAll">,
+  settings: { listeningCleanup: boolean; assignedOnly: boolean },
+): SpokenSentence[] {
+  const status = settings.assignedOnly && !r.readAll ? assignmentStatus(r) : null;
+  return toSpokenSentences(r.text, {
+    cleanup: settings.listeningCleanup,
+    unassigned: status?.kind === "partial" ? status.skipParas : undefined,
+  });
+}
+
+/** Words narration will actually speak, for time estimates. */
+export function listenWordCount(
+  r: Pick<Reading, "text" | "assignment" | "pageStarts" | "pageNumbers" | "readAll">,
+  settings: { listeningCleanup: boolean; assignedOnly: boolean } = { listeningCleanup: true, assignedOnly: true },
+): number {
+  return narrationFor(r, settings).reduce((n, s) => n + (s.skip ? 0 : s.speak.split(/\s+/).filter(Boolean).length), 0);
 }
 
 // --- Repairing ligatures that some PDFs drop ("Te" → "The", "difcult" → "difficult") ---

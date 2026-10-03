@@ -142,6 +142,25 @@ export function stripRunningLines(pages: string[][]): string[][] {
   });
 }
 
+/** Placeholder paragraph marking where PDF page `n` begins. */
+export const pageMarker = (n: number) => `\uE001pg${n}\uE001`;
+const PAGE_LINE = /^\uE001pg(\d+)\uE001$/;
+
+/**
+ * Pulls page markers out of cleaned text. pageStarts[n] is the paragraph index (Sentence.p) where PDF
+ * page n begins; a page with no text starts where the next one does.
+ */
+export function takePageMarkers(text: string): { text: string; pageStarts: number[] } {
+  const starts: number[] = [];
+  const kept: string[] = [];
+  for (const para of text.split(/\n\s*\n/)) {
+    const m = para.trim().match(PAGE_LINE);
+    if (m) starts[Number(m[1])] = kept.length;
+    else if (para.trim()) kept.push(para);
+  }
+  return { text: kept.join("\n\n"), pageStarts: Array.from(starts, (s) => s ?? kept.length) };
+}
+
 /** Placeholder paragraph marking where image `n` sat in the original page. */
 export const imageMarker = (n: number) => `img${n}`;
 const MARKER_LINE = /^img(\d+)$/;

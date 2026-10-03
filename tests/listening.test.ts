@@ -75,10 +75,10 @@ describe("classifyParagraphs", () => {
 describe("toSpokenSentences", () => {
   it("marks skipped sentences and cleans the rest, or passes text through when off", () => {
     const text = [prose(6), "Leaders matter (Northouse, 2013).", "References", "Northouse, P. G. (2013). Leadership: Theory and practice. Sage.", "Yukl, G. (2010). Leadership in organizations. Pearson."].join("\n\n");
-    const on = toSpokenSentences(text, true);
+    const on = toSpokenSentences(text, { cleanup: true });
     expect(on.find((s) => s.text.startsWith("Leaders matter"))!.speak).toBe("Leaders matter.");
     expect(on.filter((s) => s.skip === "references").length).toBeGreaterThanOrEqual(3);
-    const off = toSpokenSentences(text, false);
+    const off = toSpokenSentences(text, { cleanup: false });
     expect(off.every((s) => !s.skip && s.speak === s.text)).toBe(true);
   });
 });

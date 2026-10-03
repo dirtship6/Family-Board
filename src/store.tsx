@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import * as db from "./lib/db";
 import { Narrator, loadVoices, rankVoices } from "./lib/narrator";
 import { noteFromReading } from "./lib/notes";
-import { listenWordCount, toSpokenSentences, type SpokenSentence } from "./lib/listening";
+import { listenWordCount, narrationFor, type SpokenSentence } from "./lib/listening";
 import { DEFAULT_SETTINGS, type Note, type Reading, type Settings } from "./lib/types";
 
 const SETTINGS_KEY = "acsc-speedrun.settings";
@@ -147,7 +147,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const open = useCallback(
     (reading: Reading, play = false, startAt?: number) => {
-      const s = toSpokenSentences(reading.text, settingsRef.current.listeningCleanup);
+      const s = narrationFor(reading, settingsRef.current);
       setNowPlaying(reading);
       nowPlayingRef.current = reading;
       setSentences(s);
@@ -165,7 +165,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const missing = list.filter((r) => r.listenWords === undefined);
     if (missing.length) {
       for (const r of missing) {
-        r.listenWords = listenWordCount(r.text);
+        r.listenWords = listenWordCount(r, settingsRef.current);
         await db.put("readings", r);
       }
       setReadings(await db.all("readings"));
@@ -240,11 +240,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         return next;
       });
       if (patch.rate !== undefined) narrator.setRate(patch.rate);
-      if (patch.listeningCleanup !== undefined && nowPlayingRef.current) {
-        const wasPlaying = narrator.isPlaying;
-        const at = narrator.current;
-        settingsRef.current = { ...settingsRef.current, listeningCleanup: patch.listeningCleanup };
-        openRef.current(nowPlayingRef.current, wasPlaying, at);
+      if (patch.listeningCleanup !== undefined || patch.assignedOnly !== undefined) {
+        settingsRef.current = { ...settingsRef.current, ...patch };
+        if (nowPlayingRef.current) {
+          const wasPlaying = narrator.isPlaying;
+          openRef.current(nowPlayingRef.current, wasPlaying, narrator.current);
+        }
+        // Time estimates depend on what gets skipped; refresh them in the background.
+        void (async () => {
+          for (const r of readingsRef.current) await db.put("readings", { ...r, listenWords: listenWordCount(r, settingsRef.current) });
+          setReadings(await db.all("readings"));
+        })();
       }
       if (patch.voiceURI !== undefined) {
         narrator.setVoice(voices.find((x) => x.voiceURI === patch.voiceURI) ?? null);

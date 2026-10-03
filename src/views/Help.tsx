@@ -152,7 +152,7 @@ export function Help() {
       if (out.fixes) {
         fixed += out.fixes;
         docs++;
-        await saveReading({ ...r, text: out.text, listenWords: listenWordCount(out.text) });
+        await saveReading({ ...r, text: out.text, listenWords: listenWordCount({ ...r, text: out.text }, settings) });
       }
     }
     setBusy("");
@@ -161,7 +161,7 @@ export function Help() {
 
   const recalc = async () => {
     setBusy("Recalculating listening times…");
-    for (const r of readings) await saveReading({ ...r, listenWords: listenWordCount(r.text) });
+    for (const r of readings) await saveReading({ ...r, listenWords: listenWordCount(r, settings) });
     setBusy("");
     setResult("Listening times updated.");
   };

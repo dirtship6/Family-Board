@@ -134,3 +134,40 @@ export function stripBoilerplate(text: string): string {
     .filter((l) => !/^\s*(be sure to click\s+)?"?mark as done"?|click "mark as done"/i.test(l.trim()))
     .join("\n");
 }
+
+const STOP = new Set(["the", "and", "for", "with", "from", "into", "its", "our", "are", "read", "pages", "page"]);
+const titleWords = (s: string) =>
+  new Set(
+    s
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, " ")
+      .split(/\s+/)
+      .filter((w) => w.length >= 3 && !STOP.has(w)),
+  );
+
+/**
+ * Finds the lesson's reading instruction for each linked document, e.g. the line
+ * "Communication in Organizations (2008) Read pages 334-335 and 364-365" for the Greenberg PDF.
+ * Returns the instruction part ("Read pages 334-335 and 364-365") per title, or undefined.
+ */
+export function matchAssignments(pageText: string, docTitles: string[]): (string | undefined)[] {
+  const lines = pageText
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => /\b(read|pages?)\b[^.]*\d/i.test(l));
+  return docTitles.map((title) => {
+    const want = titleWords(title);
+    if (!want.size) return undefined;
+    let best: { score: number; instruction: string } | undefined;
+    for (const line of lines) {
+      const at = line.search(/\b(read|pages?)\b/i);
+      const head = line.slice(0, at).replace(/\((?:\d{4}|n\.?d\.?)\)\s*$/i, "");
+      const have = titleWords(head);
+      if (!have.size) continue;
+      const shared = [...want].filter((w) => have.has(w)).length;
+      const score = shared / Math.min(want.size, have.size);
+      if (score >= 0.8 && (!best || score > best.score)) best = { score, instruction: line.slice(at).trim() };
+    }
+    return best?.instruction;
+  });
+}

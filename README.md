@@ -21,6 +21,11 @@ A browser-based study companion for Air Command and Staff College. It's built to
   - Skips tables and figure text that PDFs flatten into fragments, plus logo and symbol debris. Each skipped section is labeled in the text, and tapping a skipped sentence still reads it.
   - Leaves out in-text citations like "(Barley, Meyer, and Gash, 1988)", footnote numbers stuck to words, and web addresses.
   - On Lesson 1 of LDR-601S this removes about 10% of the narration, roughly 80 minutes at 1×.
+- **Assigned pages only** (on by default, Settings): when a lesson says "Read pages 334-335 and 364-365", only those pages are narrated, and the rest is marked "not assigned" in the text and stays searchable.
+  - Assignments are picked up from the Canvas lesson pages automatically, or you can type them in Library → Edit.
+  - Printed page numbers are read from the PDF and trusted only when they agree across pages. Unnumbered pages next to an assigned page are kept to be safe.
+  - When a PDF's numbering can't be matched, or the instruction isn't a page range ("Read chapter 1"), the whole reading is narrated and the screen says why.
+  - Each reading has a "Read the whole document" switch.
 - Words that some PDFs damage by dropping letter pairs ("Te" for "The", "ofcer" for "officer") are repaired on import, using the rest of your library as a dictionary. It only touches documents that clearly show the damage.
 - The current sentence (and word, where the voice supports it) is highlighted and auto-scrolls into view. Click any sentence to jump there. Turn the text off for listening-only mode, e.g. while driving or working out.
 - A persistent player bar keeps narration going while you use other tabs. It has sentence and paragraph skip, and keyboard shortcuts: space to play/pause, ←/→ for sentences, ↑/↓ for paragraphs.

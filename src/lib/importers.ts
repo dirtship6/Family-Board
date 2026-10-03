@@ -1,6 +1,7 @@
 // Extracts plain text from the file types ACSC readings usually come in.
-import { COURSE_DATA_PATH, describeFile, emptyModules, extractRefs, parseCourseData, stripBoilerplate } from "./canvas";
-import { cleanText, imageMarker, stripRunningLines, takeImageMarkers } from "./text";
+import { COURSE_DATA_PATH, describeFile, emptyModules, extractRefs, matchAssignments, parseCourseData, stripBoilerplate } from "./canvas";
+import { detectPrintedNumber, inferPageNumbers, type PageNumber } from "./pages";
+import { cleanText, imageMarker, pageMarker, stripRunningLines, takeImageMarkers, takePageMarkers } from "./text";
 import type { ReadingLink, TaskKind } from "./types";
 
 export interface ImportedDoc {
@@ -14,6 +15,11 @@ export interface ImportedDoc {
   kind?: "page";
   /** Inline pictures, each placed before paragraph `para` of `text`. */
   images?: { para: number; alt: string; data: Blob }[];
+  /** PDFs: paragraph index where each page starts, and each page's printed number. */
+  pageStarts?: number[];
+  pageNumbers?: PageNumber[];
+  /** The lesson's instruction for this reading, e.g. "Read pages 334-335 and 364-365". */
+  assignment?: string;
 }
 
 /** Everything one dropped file produced. Course packages can also yield tasks and paper prompts. */
@@ -32,12 +38,13 @@ function baseName(name: string): string {
   return name.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim();
 }
 
-async function pdfToText(file: File): Promise<string> {
+async function pdfToText(file: File): Promise<{ text: string; pageNumbers: PageNumber[] }> {
   const pdfjs = await import("pdfjs-dist");
   const workerUrl = (await import("pdfjs-dist/build/pdf.worker.min.mjs?url")).default;
   pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
   const doc = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise;
   const pages: string[][] = [];
+  const detected: (number | null)[] = [];
   for (let i = 1; i <= doc.numPages; i++) {
     const page = await doc.getPage(i);
     const content = await page.getTextContent();
@@ -62,9 +69,15 @@ async function pdfToText(file: File): Promise<string> {
     if (line) lines.push(line);
     // JSTOR prepends a terms-of-use cover sheet; it isn't part of the reading.
     if (i === 1 && lines.some((l) => /JSTOR is a not-for-profit service/i.test(l))) continue;
+    // Read the printed page number before running headers and page numbers are stripped.
+    detected.push(detectPrintedNumber(lines));
     pages.push(lines);
   }
-  return stripRunningLines(pages).map((p) => p.join("\n")).join("\n\n");
+  // Each page starts with a marker paragraph so assigned page ranges can be mapped onto the text later.
+  const text = stripRunningLines(pages)
+    .map((p, n) => `${pageMarker(n)}\n\n${p.join("\n")}`)
+    .join("\n\n");
+  return { text, pageNumbers: inferPageNumbers(detected) };
 }
 
 async function docxToText(file: File): Promise<string> {
@@ -127,8 +140,11 @@ export async function importFile(file: File): Promise<ImportedDoc> {
   const name = file.name.toLowerCase();
   let text: string;
   let title = baseName(file.name);
-  if (name.endsWith(".pdf")) text = await pdfToText(file);
-  else if (name.endsWith(".docx")) text = await docxToText(file);
+  if (name.endsWith(".pdf")) {
+    const pdf = await pdfToText(file);
+    const { text: clean, pageStarts } = takePageMarkers(cleanText(pdf.text));
+    return { title, text: clean, pageStarts, pageNumbers: pdf.pageNumbers };
+  } else if (name.endsWith(".docx")) text = await docxToText(file);
   else if (name.endsWith(".html") || name.endsWith(".htm") || name.endsWith(".xhtml")) {
     const r = htmlToText(await file.text());
     text = r.text;
@@ -227,18 +243,21 @@ async function canvasToResult(files: Record<string, Uint8Array>, dataPath: strin
   const papers: NonNullable<ImportResult["papers"]> = [];
   const seenTitles = new Set<string>();
 
-  const importLinkedFile = async (rel: string) => {
+  const importLinkedFile = async (rel: string): Promise<ImportedDoc | undefined> => {
     const full = root + rel;
     const name = rel.split("/").pop()!;
-    if (used.has(full) || !files[full] || !/\.(pdf|docx|txt|md)$/i.test(name)) return;
+    if (used.has(full) || !files[full] || !/\.(pdf|docx|txt|md)$/i.test(name)) return undefined;
     used.add(full);
     onProgress?.(`Importing ${name}`);
     try {
       const doc = await importFile(new File([files[full] as BlobPart], name));
-      if (!doc.text.trim()) return;
-      docs.push({ ...doc, ...describeFile(name) });
+      if (!doc.text.trim()) return undefined;
+      const described: ImportedDoc = { ...doc, ...describeFile(name) };
+      docs.push(described);
+      return described;
     } catch {
       // Skip unreadable files; the rest of the course still imports.
+      return undefined;
     }
   };
 
@@ -273,7 +292,18 @@ async function canvasToResult(files: Record<string, Uint8Array>, dataPath: strin
         seenTitles.add(key);
         tasks.push({ title: item.title.trim(), kind: "quiz" });
       }
-      for (const r of refs) if (r.path) await importLinkedFile(r.path);
+      const linked: ImportedDoc[] = [];
+      for (const r of refs) {
+        if (!r.path) continue;
+        const d = await importLinkedFile(r.path);
+        if (d) linked.push(d);
+      }
+      // The lesson page says how much of each reading is assigned ("Read pages 334-335 and 364-365").
+      if (item.type === "WikiPage" && linked.length) {
+        matchAssignments(text, linked.map((d) => d.title)).forEach((instruction, k) => {
+          if (instruction) linked[k].assignment = instruction;
+        });
+      }
     }
   }
 
